@@ -1,0 +1,120 @@
+package com.paritosh.cheapchats.controller;
+
+import java.util.Map;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.paritosh.cheapchats.models.ChatGroup;
+import com.paritosh.cheapchats.models.User;
+import com.paritosh.cheapchats.repositories.UserRepository;
+import com.paritosh.cheapchats.services.GroupService;
+
+@RestController
+@RequestMapping("/api")
+@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true") // Allow all origins for CORS
+// This allows the frontend to communicate with the backend without CORS issues
+public class GroupController {
+
+    @Autowired
+    private GroupService groupService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    // LOGIN
+    @PostMapping("/login")
+    public Map<String, String> login(@RequestParam String username) {
+
+        // Check if the user already exists
+        // If not, create a new user with a unique session ID
+        if (!userRepository.existsById(username)) {
+
+            User user = new User();
+
+            // Generate a unique session ID for the user
+            // This session ID can be used to identify the user in the chat system
+            user.setUserName(username);
+            user.setSessionId(UUID.randomUUID().toString());
+
+            // save changes
+            userRepository.save(user);
+
+        }
+
+        // log user login
+        System.out.println("LOGIN: User: " + username);
+
+        // If the user already exists, return the user
+        return Map.of("status", "ok", "username", username);
+
+    }
+
+    // CREATE GROUP
+    @PostMapping("/group")
+    public ChatGroup createGroup(
+            @RequestParam String groupName,
+            @RequestParam String createdBy,
+            @RequestParam(defaultValue = "60") int expiryInMinutes
+    ) {
+        return groupService.createChatGroup(groupName, createdBy, expiryInMinutes);
+    }
+
+    // GET GROUP
+    @GetMapping("/group/{groupName}")
+    public ChatGroup getGroup(@PathVariable String groupName) {
+        return groupService.joinChatGroup(groupName, "").orElseThrow(() -> new RuntimeException("Group not found"));
+    }
+
+    // JOIN GROUP
+    @PostMapping("/group/{groupName}/join")
+    public ResponseEntity<ChatGroup> joinGroup(
+            @PathVariable String groupName,
+            @RequestParam String username
+    ) {
+
+        if (groupName == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        return groupService.joinChatGroup(groupName, username)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+
+    }
+
+    // LEAVE GROUP
+    @PostMapping("/group/{groupName}/leave")
+    public Map<String, String> leaveGroup(
+            @PathVariable String groupName,
+            @RequestParam String username
+    ) {
+
+        boolean success = groupService.leaveChatGroup(groupName, username);
+
+        return Map.of("left", String.valueOf(success));
+
+    }
+
+    // REMOVE MEMBER
+    @PostMapping("/group/{groupName}/remove")
+    public Map<String, String> removeMember(
+            @PathVariable String groupName,
+            @RequestParam String requester,
+            @RequestParam String targetUser
+    ) {
+
+        boolean success = groupService.removeMember(groupName, requester, targetUser);
+
+        return Map.of("removed", String.valueOf(success));
+
+    }
+
+}

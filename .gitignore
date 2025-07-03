@@ -1,0 +1,14 @@
+# Java
+/cheap-chats-backend/target/
+*.class
+*.log
+
+# Node
+/cheap-chats-frontend/node_modules/
+dist/
+.env
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
