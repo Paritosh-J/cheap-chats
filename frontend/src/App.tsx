@@ -6,7 +6,7 @@ import ChatRoom from "./pages/ChatRoom";
 function App() {
   return (
     <BrowserRouter>
-      <Routes>`
+      <Routes>
         <Route path="/" element={<LoginPage />} />`
         <Route path="/group/:id" element={<ChatRoom />} />
         <Route path="/group" element={<GroupPage />} />
