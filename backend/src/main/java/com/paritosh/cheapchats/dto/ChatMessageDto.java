@@ -5,6 +5,7 @@ import lombok.Data;
 @Data
 public class ChatMessageDto {
 
+    private Long id;
     private String sender;
     private String content;
     private String timestamp;

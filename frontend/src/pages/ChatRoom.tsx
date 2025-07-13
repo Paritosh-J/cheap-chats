@@ -4,7 +4,8 @@ import SockJS from "sockjs-client";
 import { CompatClient, Stomp } from "@stomp/stompjs";
 import type { ChatMessage } from "../types";
 import { BsFillChatRightTextFill } from "react-icons/bs";
-import { getGroupInfo } from "../services/api";
+import { getGroupInfo, deleteMessage } from "../services/api";
+import ChatMessageComponent from "../components/ChatMessage";
 import axios from "axios";
 
 const ChatRoom: React.FC = () => {
@@ -17,6 +18,7 @@ const ChatRoom: React.FC = () => {
   const username = localStorage.getItem("username");
   const [messages, setMessages] = useState<ChatMessage[]>([]); // chat messages
   const [input, setInput] = useState(""); // message input in text box
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null); // reply to message
   const stompClient = useRef<CompatClient | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +46,12 @@ const ChatRoom: React.FC = () => {
       try {
         const response = await axios.get(`/api/messages/${groupName}`);
         let data = response.data;
-        if (!Array.isArray(data) && data && typeof data === "object" && "Content" in data) {
+        if (
+          !Array.isArray(data) &&
+          data &&
+          typeof data === "object" &&
+          "Content" in data
+        ) {
           try {
             data = JSON.parse(data.Content);
           } catch (e) {
@@ -66,31 +73,54 @@ const ChatRoom: React.FC = () => {
     const socket = new SockJS("http://localhost:8080/ws");
     stompClient.current = Stomp.over(socket);
 
-    stompClient.current.connect({}, () => {
-      // Subscribe to group messages
-      stompClient.current?.subscribe(
-        `/topic/group/${groupName}`,
-        (payload: { body: string }) => {
-          const msg: ChatMessage = JSON.parse(payload.body);
-          setMessages((prev) => [...prev, msg]);
-        }
-      );
+    stompClient.current.connect(
+      {},
+      () => {
+        console.log("WebSocket connected successfully");
 
-      // create JOIN message
-      const joinMsg: ChatMessage = {
-        sender: username!,
-        content: `${username} joined the group`,
-        type: "JOIN",
-        timestamp: new Date().toISOString(),
-      };
+        // Subscribe to group messages
+        stompClient.current?.subscribe(
+          `/topic/group/${groupName}`,
+          (payload: { body: string }) => {
+            const msg: ChatMessage = JSON.parse(payload.body);
+            console.log("Received WebSocket message:", msg);
 
-      // send join message to the server
-      stompClient.current?.send(
-        `/app/chat/${groupName}/send`,
-        {},
-        JSON.stringify(joinMsg)
-      );
-    });
+            if (msg.type === "DELETE") {
+              console.log("Processing DELETE message for ID:", msg.id);
+              // Remove the deleted message from the UI
+              setMessages((prev) => {
+                const filtered = prev.filter((m) => m.id !== msg.id);
+                console.log(
+                  `Removed message ${msg.id}. Messages count: ${prev.length} -> ${filtered.length}`
+                );
+                return filtered;
+              });
+            } else {
+              // Add new message to the UI
+              setMessages((prev) => [...prev, msg]);
+            }
+          }
+        );
+
+        // create JOIN message
+        const joinMsg: ChatMessage = {
+          sender: username,
+          content: `${username} joined the group`,
+          type: "JOIN",
+          timestamp: new Date().toISOString(),
+        };
+
+        // send join message to the server
+        stompClient.current?.send(
+          `/app/chat/${groupName}/send`,
+          {},
+          JSON.stringify(joinMsg)
+        );
+      },
+      (error: any) => {
+        console.error("WebSocket connection error:", error);
+      }
+    );
 
     // handle disconnection (leave group)
     return () => {
@@ -126,6 +156,13 @@ const ChatRoom: React.FC = () => {
       content: input,
       type: "CHAT",
       timestamp: new Date().toISOString(),
+      replyTo: replyTo
+        ? {
+            sender: replyTo.sender,
+            content: replyTo.content,
+            timestamp: replyTo.timestamp,
+          }
+        : undefined,
     };
 
     // send message to the server
@@ -137,6 +174,38 @@ const ChatRoom: React.FC = () => {
 
     // update local messages state
     setInput("");
+    setReplyTo(null); // clear reply
+  };
+
+  const handleDeleteMessage = async (messageId: number) => {
+    try {
+      console.log(
+        `Attempting to delete message ${messageId} in group ${groupName} by user ${username}`
+      );
+      // Call backend API to delete message
+      await deleteMessage(messageId.toString(), groupName!, username!);
+      console.log(`Delete API call successful for message ${messageId}`);
+      // The message will be removed from UI via WebSocket notification
+    } catch (error) {
+      console.error("Failed to delete message:", error);
+      // Fallback: remove from local state if API call fails
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    }
+  };
+
+  const handleReplyToMessage = (message: ChatMessage) => {
+    setReplyTo(message);
+    // Focus on input field
+    const inputElement = document.querySelector(
+      'input[type="text"]'
+    ) as HTMLInputElement;
+    if (inputElement) {
+      inputElement.focus();
+    }
+  };
+
+  const cancelReply = () => {
+    setReplyTo(null);
   };
 
   useEffect(() => {
@@ -144,7 +213,7 @@ const ChatRoom: React.FC = () => {
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-200 px-2 pt-4 pb-3">
+    <div className="flex flex-col h-screen bg-gradient-to-b from-slate-50 to-green-200 px-2 pt-4 pb-3">
       <div className="flex items-center justify-between border border-black p-2 bg-white text-black rounded">
         <h2 className="text-xl font-bold">Cheap Chats 🤌</h2>
         <h2 className="text-xl font-bold">#{resolvedGroupName}</h2>
@@ -153,7 +222,7 @@ const ChatRoom: React.FC = () => {
             localStorage.removeItem("username");
             navigate("/");
           }}
-          className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded"
+          className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded border border-black"
         >
           Logout
         </button>
@@ -161,50 +230,50 @@ const ChatRoom: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto my-3 space-y-2">
         {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            className={`flex ${
-              msg.sender === username ? "justify-end" : "justify-start"
-            }`}
-          >
-            <div
-              className={`px-3 py-2 rounded-lg max-w-xs ${
-                msg.type === "CHAT"
-                  ? msg.sender === username
-                    ? "bg-blue-500 text-white"
-                    : "bg-white text-gray-900 border"
-                  : "bg-yellow-200 text-gray-800 text-sm"
-              }`}
-            >
-              {msg.type === "CHAT" ? (
-                <>
-                  <div className="font-semibold text-xs mb-1">{msg.sender}</div>
-                  <div>{msg.content}</div>
-                  <div className="text-[10px] text-right mt-1 text-gray-500">
-                    {msg.timestamp &&
-                      new Date(msg.timestamp).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                  </div>
-                </>
-              ) : (
-                <em className="text-[12px]">{msg.content}</em>
-              )}
-            </div>
-          </div>
+          <ChatMessageComponent
+            key={msg.id || idx}
+            message={msg}
+            isOwnMessage={msg.sender === username}
+            onDelete={handleDeleteMessage}
+            onReply={handleReplyToMessage}
+            username={username!}
+          />
         ))}
         <div ref={chatEndRef} />
       </div>
 
-      <div className="flex border border-black rounded">
+      {/* Reply Preview */}
+      {replyTo && (
+        <div className="mb-2 p-2 bg-gray-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-gray-600">
+              Replying to{" "}
+              <span className="font-semibold">{replyTo.sender}</span>:{" "}
+              {replyTo.content.substring(0, 50)}
+              {replyTo.content.length > 50 ? "..." : ""}
+            </div>
+            <button
+              onClick={cancelReply}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           className="flex-1 p-2 rounded-l border border-gray-300 bg-white focus:outline-none"
-          placeholder="your cheap shots ... 😏"
+          placeholder={
+            replyTo
+              ? `Reply to ${replyTo.sender}...`
+              : "your cheap shots ... 😏"
+          }
         />
         <button
           onClick={sendMessage}

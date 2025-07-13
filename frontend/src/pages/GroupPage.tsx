@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createGroup, joinGroup } from "../services/api";
+import { BsBoxArrowRight } from "react-icons/bs";
 
 const GroupPage: React.FC = () => {
   const [groupName, setGroupName] = useState("");
@@ -81,7 +82,7 @@ const GroupPage: React.FC = () => {
           Welcome, {username} 👋
         </h2>
 
-        <div className="mb-6">
+        <div className="mb-5">
           <h3 className="font-medium mb-2 text-gray-700">Create a New Group</h3>
           <input
             type="text"
@@ -105,6 +106,10 @@ const GroupPage: React.FC = () => {
           </button>
         </div>
 
+        {error && (
+          <p className="text-red-500 text-sm m-1 text-center">{error}</p>
+        )}
+
         <div>
           <h3 className="font-medium mb-2 text-gray-700">
             Join Existing Group
@@ -124,9 +129,19 @@ const GroupPage: React.FC = () => {
           </button>
         </div>
 
-        {error && (
-          <p className="text-red-500 text-sm mt-4 text-center">{error}</p>
-        )}
+        {/* Logout Button */}
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => {
+              localStorage.removeItem("username");
+              navigate("/");
+            }}
+            className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
+            title="Logout"
+          >
+            <BsBoxArrowRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </div>
   );
