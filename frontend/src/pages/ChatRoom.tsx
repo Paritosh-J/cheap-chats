@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import SockJS from "sockjs-client";
 import { CompatClient, Stomp } from "@stomp/stompjs";
 import type { ChatMessage } from "../types";
 import { BsFillChatRightTextFill } from "react-icons/bs";
+import { FiArrowDown, FiSend } from "react-icons/fi";
 import { getGroupInfo, deleteMessage, getGroupMessages } from "../services/api";
 import ChatMessageComponent from "../components/ChatMessage";
 
@@ -20,6 +21,9 @@ const ChatRoom: React.FC = () => {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null); // reply to message
   const stompClient = useRef<CompatClient | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     // if username/groupName is empty
@@ -93,7 +97,7 @@ const ChatRoom: React.FC = () => {
         );
 
         // Send JOIN message only if just joined
-        if (sessionStorage.getItem('justJoinedGroup') === 'true') {
+        if (sessionStorage.getItem("justJoinedGroup") === "true") {
           const joinMsg: ChatMessage = {
             sender: username!,
             content: `${username} joined the group`,
@@ -105,7 +109,7 @@ const ChatRoom: React.FC = () => {
             {},
             JSON.stringify(joinMsg)
           );
-          sessionStorage.removeItem('justJoinedGroup');
+          sessionStorage.removeItem("justJoinedGroup");
         }
       },
       (error: any) => {
@@ -137,14 +141,61 @@ const ChatRoom: React.FC = () => {
     };
   }, [groupName, username, navigate]);
 
-  const sendMessage = () => {
-    // if input is empty or stompClient is not connected
-    if (!input.trim() || !stompClient.current?.connected) return;
+  // Focus input when window regains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      inputRef.current?.focus();
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
 
-    // create chat message
+  // Scroll to bottom logic and show/hide button
+  const handleScroll = useCallback(() => {
+    const el = messageListRef.current;
+    if (!el) return;
+    const threshold = 150; // px from bottom
+    const atBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    setShowScrollToBottom(!atBottom);
+  }, []);
+
+  useEffect(() => {
+    const el = messageListRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll);
+    // Initial check
+    handleScroll();
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  // Scroll to bottom function
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Auto-expand textarea
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    // Auto-resize
+    const textarea = e.target;
+    textarea.style.height = "auto";
+    textarea.style.height = textarea.scrollHeight + "px";
+  };
+
+  // Clean message: trim and remove leading/trailing whitespace and blank lines
+  const cleanMessage = (msg: string) => {
+    // Remove leading/trailing whitespace and blank lines
+    return msg.replace(/^[\s\n]+|[\s\n]+$/g, "");
+  };
+
+  // Send message with cleaning
+  const sendMessage = useCallback(() => {
+    const cleaned = cleanMessage(input);
+    if (!cleaned || !stompClient.current?.connected) return;
     const msg: ChatMessage = {
       sender: username!,
-      content: input,
+      content: cleaned,
       type: "CHAT",
       timestamp: new Date().toISOString(),
       replyTo: replyTo
@@ -165,7 +216,18 @@ const ChatRoom: React.FC = () => {
 
     // update local messages state
     setInput("");
-    setReplyTo(null); // clear reply
+    setReplyTo(null);
+    // Reset textarea height
+    if (inputRef.current) inputRef.current.style.height = "auto";
+  }, [input, stompClient, username, groupName, replyTo]);
+
+  // Handle keydown for textarea
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+    // Shift+Enter inserts newline (default behavior)
   };
 
   const handleDeleteMessage = async (messageId: number) => {
@@ -219,7 +281,11 @@ const ChatRoom: React.FC = () => {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto my-3 space-y-2">
+      <div
+        className="flex-1 overflow-y-auto my-3 space-y-2"
+        ref={messageListRef}
+        style={{ position: "relative" }}
+      >
         {messages.map((msg, idx) => (
           <ChatMessageComponent
             key={msg.id || idx}
@@ -253,26 +319,42 @@ const ChatRoom: React.FC = () => {
         </div>
       )}
 
-      <div className="flex">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-          className="flex-1 p-2 rounded-l border border-gray-300 bg-white focus:outline-none"
-          placeholder={
-            replyTo
-              ? `Reply to ${replyTo.sender}...`
-              : "your cheap shots ... 😏"
-          }
-        />
-        <button
-          onClick={sendMessage}
-          className="py-2 px-6 bg-green-600 text-white rounded hover:bg-green-700 transition duration-150 cursor-pointer"
-          disabled={!input.trim() || !stompClient.current?.connected}
-        >
-          <BsFillChatRightTextFill />
-        </button>
+      <div className="flex flex-col" style={{ position: "relative" }}>
+        {/* Scroll to Bottom Button - bottom right above send button */}
+        {showScrollToBottom && (
+          <button
+            onClick={scrollToBottom}
+            className="fixed md:absolute right-15 md:right-4 bottom-17 p-2 bg-black text-white rounded-full shadow-lg hover:bg-white hover:text-black transition z-20 hover:scale-110 cursor-pointer"
+            style={{ boxShadow: "0 2px 8px rgba(14, 8, 8, 0.15)", transition: 'opacity 0.3s, transform 0.3s' }}
+            aria-label="Scroll to Bottom"
+          >
+            <FiArrowDown size={28} />
+          </button>
+        )}
+        <div className="flex">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleInputKeyDown}
+            className="flex-1 p-2 rounded-l border border-gray-300 bg-white focus:outline-none resize-none max-h-40 min-h-[40px]"
+            placeholder={
+              replyTo
+                ? `Reply to ${replyTo.sender}...`
+                : "your cheap shots ... 😏"
+            }
+            rows={1}
+            style={{ overflow: "hidden" }}
+          />
+          <button
+            onClick={sendMessage}
+            className="py-2 px-6 bg-green-600 text-white rounded hover:bg-green-700 transition duration-150 cursor-pointer flex items-center justify-center"
+            disabled={!cleanMessage(input) || !stompClient.current?.connected}
+            aria-label="Send Message"
+          >
+            <FiSend size={25} />
+          </button>
+        </div>
       </div>
     </div>
   );

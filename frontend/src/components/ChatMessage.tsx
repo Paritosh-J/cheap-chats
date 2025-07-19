@@ -47,7 +47,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
               <div className="font-semibold text-xs mb-1 opacity-90 underline text-black">
                 {message.sender}
               </div>
-              <div className="text-sm leading-relaxed">{message.content}</div>
+              <div className="text-sm leading-relaxed" style={{ whiteSpace: 'pre-line' }}>{message.content}</div>
               <div className="text-[11px] text-right mt-2 text-black">
                 {message.timestamp &&
                   new Date(message.timestamp).toLocaleTimeString([], {
