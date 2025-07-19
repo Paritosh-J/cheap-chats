@@ -64,6 +64,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         {/* Action Buttons - Always visible below message */}
         {message.type === 'CHAT' && (
           <div className="flex gap-1 mt-1">
+            {/* reply button */}
             <button
               onClick={handleReply}
               className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors duration-150"
@@ -71,6 +72,8 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             >
               <BsReply className="w-3 h-3 text-gray-600" />
             </button>
+
+            {/* delete button */}
             {isOwnMessage && (
               <button
                 onClick={handleDelete}
@@ -80,6 +83,8 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 <BsTrash className="w-3 h-3 text-red-600" />
               </button>
             )}
+
+            {/* copy button */}
             <button
               onClick={handleCopy}
               className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors duration-150"

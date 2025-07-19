@@ -33,6 +33,8 @@ const GroupPage: React.FC = () => {
       const response = await createGroup(groupName.trim(), username!, expiry);
 
       if (response.status === 200) {
+        // set flag to indicate just joined
+        sessionStorage.setItem('justJoinedGroup', 'true');
         // redirect to newly created group
         navigate(`/group/${response.data.groupName}`);
       } else {
@@ -65,6 +67,8 @@ const GroupPage: React.FC = () => {
       const response = await joinGroup(groupName.trim(), username!);
 
       if (response.status === 200) {
+        // set flag to indicate just joined
+        sessionStorage.setItem('justJoinedGroup', 'true');
         // redirect to the group chat room
         navigate(`/group/${response.data.groupName}`);
       } else {
