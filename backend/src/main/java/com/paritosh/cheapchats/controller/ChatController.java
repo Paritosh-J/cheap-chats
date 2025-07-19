@@ -97,7 +97,7 @@ public class ChatController {
             System.out.println("DELETE NOTIFICATION SENT: Message " + messageId + " delete notification broadcasted to group " + groupName);
             System.out.println("DELETE DTO: " + deleteDto.toString());
 
-        } catch (Exception e) {
+        } catch (MessagingException e) {
             System.err.println("Error deleting message " + messageId + ": " + e.getMessage());
         }
     }

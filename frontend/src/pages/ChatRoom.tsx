@@ -4,9 +4,8 @@ import SockJS from "sockjs-client";
 import { CompatClient, Stomp } from "@stomp/stompjs";
 import type { ChatMessage } from "../types";
 import { BsFillChatRightTextFill } from "react-icons/bs";
-import { getGroupInfo, deleteMessage } from "../services/api";
+import { getGroupInfo, deleteMessage, getGroupMessages } from "../services/api";
 import ChatMessageComponent from "../components/ChatMessage";
-import axios from "axios";
 
 const ChatRoom: React.FC = () => {
   const navigate = useNavigate(); // for navigation to pages
@@ -44,21 +43,7 @@ const ChatRoom: React.FC = () => {
     // fetch persisted messages
     const fetchMessages = async () => {
       try {
-        const response = await axios.get(`/api/messages/${groupName}`);
-        let data = response.data;
-        if (
-          !Array.isArray(data) &&
-          data &&
-          typeof data === "object" &&
-          "Content" in data
-        ) {
-          try {
-            data = JSON.parse(data.Content);
-          } catch (e) {
-            data = [];
-          }
-        }
-        if (!Array.isArray(data)) data = [];
+        const data = await getGroupMessages(groupName);
         setMessages(data);
       } catch (error) {
         console.error("Failed to fetch messages:", error);
@@ -96,26 +81,32 @@ const ChatRoom: React.FC = () => {
                 return filtered;
               });
             } else {
-              // Add new message to the UI
-              setMessages((prev) => [...prev, msg]);
+              // Add new message to the UI only if not already present
+              setMessages((prev) => {
+                if (msg.id && prev.some((m) => m.id === msg.id)) {
+                  return prev;
+                }
+                return [...prev, msg];
+              });
             }
           }
         );
 
-        // create JOIN message
-        const joinMsg: ChatMessage = {
-          sender: username,
-          content: `${username} joined the group`,
-          type: "JOIN",
-          timestamp: new Date().toISOString(),
-        };
-
-        // send join message to the server
-        stompClient.current?.send(
-          `/app/chat/${groupName}/send`,
-          {},
-          JSON.stringify(joinMsg)
-        );
+        // Send JOIN message only if just joined
+        if (sessionStorage.getItem('justJoinedGroup') === 'true') {
+          const joinMsg: ChatMessage = {
+            sender: username!,
+            content: `${username} joined the group`,
+            type: "JOIN",
+            timestamp: new Date().toISOString(),
+          };
+          stompClient.current?.send(
+            `/app/chat/${groupName}/send`,
+            {},
+            JSON.stringify(joinMsg)
+          );
+          sessionStorage.removeItem('justJoinedGroup');
+        }
       },
       (error: any) => {
         console.error("WebSocket connection error:", error);
