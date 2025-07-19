@@ -8,4 +8,25 @@ export default defineConfig({
   define: {
     global: "globalThis",
   },
+  build: {
+    outDir: "dist",
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          router: ["react-router-dom"],
+          socket: ["socket.io-client", "sockjs-client", "@stomp/stompjs"],
+        },
+      },
+    },
+  },
+  server: {
+    port: 5173,
+    host: true,
+  },
+  preview: {
+    port: 4173,
+    host: true,
+  },
 });
