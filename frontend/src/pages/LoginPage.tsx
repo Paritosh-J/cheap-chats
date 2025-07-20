@@ -56,7 +56,7 @@ const LoginPage: React.FC = () => {
           required
           autoFocus
         />
-        {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
+        {error && <p className="text-red-500 text-sm mb-3 text-center">{error}</p>}
         <button
           type="submit"
           className="w-full text-xl text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:outline-none focus:ring-primary-300 font-bold rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
