@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createGroup, joinGroup } from "../services/api";
 import { BsBoxArrowRight } from "react-icons/bs";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 const GroupPage: React.FC = () => {
   const [groupName, setGroupName] = useState("");
@@ -34,7 +35,7 @@ const GroupPage: React.FC = () => {
 
       if (response.status === 200) {
         // set flag to indicate just joined
-        sessionStorage.setItem('justJoinedGroup', 'true');
+        sessionStorage.setItem("justJoinedGroup", "true");
         // redirect to newly created group
         navigate(`/group/${response.data.groupName}`);
       } else {
@@ -68,7 +69,7 @@ const GroupPage: React.FC = () => {
 
       if (response.status === 200) {
         // set flag to indicate just joined
-        sessionStorage.setItem('justJoinedGroup', 'true');
+        sessionStorage.setItem("justJoinedGroup", "true");
         // redirect to the group chat room
         navigate(`/group/${response.data.groupName}`);
       } else {
@@ -82,9 +83,27 @@ const GroupPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-blue-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4 py-6">
       <div className="bg-white rounded-xl shadow-md p-6 w-full max-w-sm">
-        <h2 className="text-2xl font-semibold text-blue-600 mb-4 text-center">
-          Welcome, {username} 👋
-        </h2>
+        <div className="flex justify-center items-center">
+          <DotLottieReact
+            src="https://lottie.host/7002269e-f8c6-4ebf-9e49-93fc360d7d0a/csFyOhj0oA.lottie"
+            loop
+            autoplay
+            style={{ width: 85, height: 85 }}
+          />
+          <span
+            style={{
+              height: 120,
+              display: "flex",
+              alignItems: "center",
+              color: "#00bd32",
+              fontWeight: "bold",
+              fontSize: "2rem",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {username}👋
+          </span>
+        </div>
 
         <div className="mb-5">
           <h3 className="font-medium mb-2 text-gray-700">Create a New Group</h3>
@@ -104,9 +123,11 @@ const GroupPage: React.FC = () => {
           />
           <button
             onClick={handleCreate}
-            className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 transition-all"
+            className="w-full bg-green-500 text-white font-bold py-2 rounded hover:bg-green-600 transition-all cursor-pointer"
           >
-            Create Group
+            <span className="drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
+              Create Group
+            </span>
           </button>
         </div>
 
@@ -127,9 +148,11 @@ const GroupPage: React.FC = () => {
           />
           <button
             onClick={handleJoin}
-            className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition-all"
+            className="w-full bg-blue-500 text-white font-bold py-2 rounded hover:bg-blue-600 transition-all cursor-pointer"
           >
-            Join Group
+            <span className="drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
+              Join Group
+            </span>
           </button>
         </div>
 

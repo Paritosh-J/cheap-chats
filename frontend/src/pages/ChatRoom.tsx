@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import SockJS from "sockjs-client";
 import { CompatClient, Stomp } from "@stomp/stompjs";
 import type { ChatMessage } from "../types";
-import { BsFillChatRightTextFill } from "react-icons/bs";
 import { FiArrowDown, FiSend } from "react-icons/fi";
 import { getGroupInfo, deleteMessage, getGroupMessages } from "../services/api";
 import ChatMessageComponent from "../components/ChatMessage";
