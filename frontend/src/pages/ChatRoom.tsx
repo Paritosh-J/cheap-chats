@@ -300,7 +300,7 @@ const ChatRoom: React.FC = () => {
 
       {/* Reply Preview */}
       {replyTo && (
-        <div className="mb-2 p-2 bg-gray-200 rounded-lg">
+        <div className="mb-2 p-2 bg-gray-200 rounded-lg border border-solid">
           <div className="flex items-center justify-between">
             <div className="text-xs text-gray-600">
               Replying to{" "}
@@ -323,7 +323,7 @@ const ChatRoom: React.FC = () => {
         {showScrollToBottom && (
           <button
             onClick={scrollToBottom}
-            className="fixed md:absolute right-15 md:right-4 bottom-17 p-2 bg-black text-white rounded-full shadow-lg hover:bg-white hover:text-black transition z-20 hover:scale-110 cursor-pointer"
+            className="fixed md:absolute right-15 md:right-4 bottom-25 p-2 bg-black text-white rounded-full shadow-lg border-2 border-white  hover:bg-white hover:text-black hover:border-1 hover:border-black transition z-20 hover:scale-110 cursor-pointer"
             style={{ boxShadow: "0 2px 8px rgba(14, 8, 8, 0.15)", transition: 'opacity 0.3s, transform 0.3s' }}
             aria-label="Scroll to Bottom"
           >
@@ -336,7 +336,7 @@ const ChatRoom: React.FC = () => {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleInputKeyDown}
-            className="flex-1 p-2 rounded-l border border-gray-300 bg-white focus:outline-none resize-none max-h-40 min-h-[40px]"
+            className="flex-1 p-2 rounded-l border border-black bg-white focus:outline-none resize-none max-h-40 min-h-[40px]"
             placeholder={
               replyTo
                 ? `Reply to ${replyTo.sender}...`
@@ -347,7 +347,7 @@ const ChatRoom: React.FC = () => {
           />
           <button
             onClick={sendMessage}
-            className="py-2 px-6 bg-green-600 text-white rounded hover:bg-green-700 transition duration-150 cursor-pointer flex items-center justify-center"
+            className="py-2 px-6 bg-green-600 text-white border-2 border-black rounded hover:bg-green-700 transition duration-150 cursor-pointer flex items-center justify-center"
             disabled={!cleanMessage(input) || !stompClient.current?.connected}
             aria-label="Send Message"
           >
