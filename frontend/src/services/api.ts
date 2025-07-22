@@ -62,3 +62,9 @@ export const deleteMessage = async (
   axios.delete(`${BASE_URL}/messages/${messageId}`, {
     params: { groupName, username },
   });
+
+export const getUserGroups = async (username: string) =>
+  axios.get(`${BASE_URL}/groups`, { params: { username } });
+
+export const deleteGroup = async (groupName: string, username: string) =>
+  axios.delete(`${BASE_URL}/group/${groupName}`, { params: { username } });
