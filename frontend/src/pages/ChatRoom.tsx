@@ -40,6 +40,7 @@ const ChatRoom: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMemberSettings, setShowMemberSettings] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
 
   // fetch persisted messages
   useEffect(() => {
@@ -286,13 +287,25 @@ const ChatRoom: React.FC = () => {
   const handleDeleteGroup = async () => {
     try {
       await deleteGroup(groupName!, username!);
-      navigate("/groups"); // or navigate to group list page
+      navigate("/group"); // or navigate to group list page
     } catch (error) {
       alert("Failed to delete group. You may not have permission.");
     }
   };
 
-  
+  const handleRemoveMember = async () => {
+    try {
+      await removeMember(groupName!, username!, username!);
+    } catch (error) {
+      alert("Failed to remove member.");
+    }
+  };
+
+  const [membersList] = useState([
+    { memberName: "Alice" },
+    { memberName: "Bob" },
+    { memberName: "Charlie" },
+  ]);
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-slate-50 to-green-200 px-2 pt-4 pb-3">
@@ -314,7 +327,7 @@ const ChatRoom: React.FC = () => {
           {/* Group settings button */}
           <button
             onClick={() => {
-              // navigate("/group");
+              setShowGroupSettings(true);
             }}
             className=" p-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-yellow"
             title="Group settings"
@@ -325,7 +338,7 @@ const ChatRoom: React.FC = () => {
           {/* Group members settings button */}
           <button
             onClick={() => setShowMemberSettings(true)}
-            className=" p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
+            className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
             title="Members settings"
           >
             <BsPersonFillGear className="w-5 h-5" />
@@ -356,14 +369,66 @@ const ChatRoom: React.FC = () => {
         </div>
       </div>
 
+      {/* Group settings popup */}
+      {showGroupSettings && (
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs z-50">
+          <div className="bg-white p-6 rounded shadow-lg max-w-xs w-full">
+            <h3 className="text-lg font-bold mb-2 text-green-600 text-center">
+              Group Settings{" "}
+              <span className="drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
+                ⚙️
+              </span>
+            </h3>
+
+            {/* Back button */}
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={() => setShowGroupSettings(false)}
+                className=" p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
+                title="Back"
+              >
+                <BsArrowLeft className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Group Members setting popup */}
       {showMemberSettings && (
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs bg-opacity-40 z-50 ">
           <div className="bg-white p-6 rounded shadow-lg max-w-xs w-full">
             <h3 className="text-lg font-bold mb-2 text-green-600 text-center">
-              Members
+              Members 😎
             </h3>
-            
+            <ul>
+              {membersList.map((member) => (
+                <li
+                  key={member.memberName}
+                  className="flex justify-center items-center py-1"
+                >
+                  <span>{member.memberName}</span>
+                  <button
+                    className="ml-2 px-2 py-1 bg-red-100 rounded-full transition-all duration-200 hover:bg-red-200 hover:scale-110 text-red-600 rounded text-xs cursor-pointer border border-red"
+                    onClick={handleRemoveMember}
+                    title="Remove member"
+                  >
+                    <BsTrash className="" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {/* Back button */}
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={() => setShowMemberSettings(false)}
+                className=" p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
+                title="Back"
+              >
+                <BsArrowLeft className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       )}
