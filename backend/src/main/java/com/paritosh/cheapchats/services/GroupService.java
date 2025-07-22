@@ -13,4 +13,10 @@ public interface GroupService {
     boolean leaveChatGroup(String groupName, String userName);
 
     boolean removeMember(String groupName, String requester, String targetUser);
+
+    java.util.List<ChatGroup> getGroupsForUser(String username);
+    
+    ChatGroup getGroupByName(String groupName);
+    
+    void deleteGroup(String groupName);
 }

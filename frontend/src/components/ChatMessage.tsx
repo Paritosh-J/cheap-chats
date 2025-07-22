@@ -1,5 +1,5 @@
 import React from "react";
-import { BsTrash, BsReply, BsClipboard, BsCopy } from "react-icons/bs";
+import { BsTrash, BsReply, BsCopy } from "react-icons/bs";
 import type { ChatMessageProps } from "../types";
 
 const ChatMessageComponent: React.FC<ChatMessageProps> = ({

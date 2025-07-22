@@ -144,4 +144,19 @@ public class GroupServiceImpl implements GroupService {
 
     }
 
+    @Override
+    public java.util.List<ChatGroup> getGroupsForUser(String username) {
+        return chatGroupRepository.findByMembersContaining(username);
+    }
+
+    @Override
+    public ChatGroup getGroupByName(String groupName) {
+        return chatGroupRepository.findById(groupName).orElse(null);
+    }
+
+    @Override
+    public void deleteGroup(String groupName) {
+        chatGroupRepository.deleteById(groupName);
+    }
+
 }

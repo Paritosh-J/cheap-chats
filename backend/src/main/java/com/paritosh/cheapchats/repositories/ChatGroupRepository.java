@@ -8,4 +8,6 @@ public interface ChatGroupRepository extends JpaRepository<ChatGroup, String> {
 
     boolean existsByGroupName(String groupName);
 
+    // Find all groups where a user is a member
+    java.util.List<ChatGroup> findByMembersContaining(String username);
 }
