@@ -2,6 +2,8 @@ package com.paritosh.cheapchats.controller;
 
 import java.util.Map;
 import java.util.UUID;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import com.paritosh.cheapchats.models.ChatGroup;
 import com.paritosh.cheapchats.models.User;
@@ -128,6 +131,31 @@ public class GroupController {
 
         return Map.of("removed", String.valueOf(success));
 
+    }
+
+    // List all groups for a user (not expired)
+    @GetMapping("/groups")
+    public List<ChatGroup> getUserGroups(@RequestParam String username) {
+        List<ChatGroup> allGroups = groupService.getGroupsForUser(username);
+        LocalDateTime now = LocalDateTime.now();
+        // Filter out expired groups
+        return allGroups.stream()
+                .filter(group -> group.getExpiresAt() != null && group.getExpiresAt().isAfter(now))
+                .toList();
+    }
+
+    // Delete a group (admin only)
+    @DeleteMapping("/group/{groupName}")
+    public ResponseEntity<?> deleteGroup(@PathVariable String groupName, @RequestParam String username) {
+        ChatGroup group = groupService.getGroupByName(groupName);
+        if (group == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Group not found"));
+        }
+        if (!group.getCreatedBy().equals(username)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Only admin can delete the group"));
+        }
+        groupService.deleteGroup(groupName);
+        return ResponseEntity.ok(Map.of("deleted", true));
     }
 
 }
