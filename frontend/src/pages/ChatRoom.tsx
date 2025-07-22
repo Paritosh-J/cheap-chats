@@ -4,6 +4,7 @@ import SockJS from "sockjs-client";
 import { CompatClient, Stomp } from "@stomp/stompjs";
 import type { ChatMessage } from "../types";
 import { FiArrowDown, FiSend } from "react-icons/fi";
+import { BsBoxArrowRight } from "react-icons/bs";
 import { getGroupInfo, deleteMessage, getGroupMessages } from "../services/api";
 import ChatMessageComponent from "../components/ChatMessage";
 
@@ -274,9 +275,10 @@ const ChatRoom: React.FC = () => {
             localStorage.removeItem("username");
             navigate("/");
           }}
-          className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded border border-black"
+          className=" p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
+          title="Logout"
         >
-          Logout
+          <BsBoxArrowRight className="w-5 h-5" />
         </button>
       </div>
 
@@ -323,8 +325,11 @@ const ChatRoom: React.FC = () => {
         {showScrollToBottom && (
           <button
             onClick={scrollToBottom}
-            className="fixed md:absolute right-15 md:right-4 bottom-25 p-2 bg-black text-white rounded-full shadow-lg border-2 border-white  hover:bg-white hover:text-black hover:border-1 hover:border-black transition z-20 hover:scale-110 cursor-pointer"
-            style={{ boxShadow: "0 2px 8px rgba(14, 8, 8, 0.15)", transition: 'opacity 0.3s, transform 0.3s' }}
+            className="fixed md:absolute right-15 md:right-4 bottom-17 p-2 bg-black text-white rounded-full shadow-lg border-2 border-white  hover:bg-white hover:text-black hover:border-1 hover:border-black transition z-20 hover:scale-110 cursor-pointer"
+            style={{
+              boxShadow: "0 2px 8px rgba(14, 8, 8, 0.15)",
+              transition: "opacity 0.3s, transform 0.3s",
+            }}
             aria-label="Scroll to Bottom"
           >
             <FiArrowDown size={28} />
