@@ -4,8 +4,21 @@ import SockJS from "sockjs-client";
 import { CompatClient, Stomp } from "@stomp/stompjs";
 import type { ChatMessage } from "../types";
 import { FiArrowDown, FiSend } from "react-icons/fi";
-import { BsBoxArrowRight } from "react-icons/bs";
-import { getGroupInfo, deleteMessage, getGroupMessages } from "../services/api";
+import {
+  BsArrowLeft,
+  BsBoxArrowRight,
+  BsGearFill,
+  BsPersonFillGear,
+  BsTrash,
+  BsTrash3Fill,
+} from "react-icons/bs";
+import {
+  getGroupInfo,
+  deleteMessage,
+  getGroupMessages,
+  deleteGroup,
+  removeMember,
+} from "../services/api";
 import ChatMessageComponent from "../components/ChatMessage";
 
 const ChatRoom: React.FC = () => {
@@ -24,7 +37,11 @@ const ChatRoom: React.FC = () => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const messageListRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMemberSettings, setShowMemberSettings] = useState(false);
 
+  // fetch persisted messages
   useEffect(() => {
     // if username/groupName is empty
     if (!username || !groupName) {
@@ -38,6 +55,7 @@ const ChatRoom: React.FC = () => {
       try {
         const response = await getGroupInfo(groupName);
         setResolvedGroupName(response.data.groupName);
+        setIsAdmin(response.data.createdBy === username);
       } catch (error) {
         console.error("Failed to fetch group info:", error);
         setResolvedGroupName("Group not found!");
@@ -265,22 +283,121 @@ const ChatRoom: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const handleDeleteGroup = async () => {
+    try {
+      await deleteGroup(groupName!, username!);
+      navigate("/groups"); // or navigate to group list page
+    } catch (error) {
+      alert("Failed to delete group. You may not have permission.");
+    }
+  };
+
+  
+
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-slate-50 to-green-200 px-2 pt-4 pb-3">
       <div className="flex items-center justify-between border border-black p-2 bg-white text-black rounded">
-        <h2 className="text-xl font-bold">Cheap Chats 🤌</h2>
-        <h2 className="text-xl font-bold">#{resolvedGroupName}</h2>
+        {/* Back button */}
         <button
           onClick={() => {
-            localStorage.removeItem("username");
-            navigate("/");
+            navigate("/group");
           }}
-          className=" p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
-          title="Logout"
+          className=" p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
+          title="Back"
         >
-          <BsBoxArrowRight className="w-5 h-5" />
+          <BsArrowLeft className="w-5 h-5" />
         </button>
+
+        <h2 className="text-xl font-bold">#{resolvedGroupName}</h2>
+
+        <div className="flex items-center gap-2">
+          {/* Group settings button */}
+          <button
+            onClick={() => {
+              // navigate("/group");
+            }}
+            className=" p-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-yellow"
+            title="Group settings"
+          >
+            <BsGearFill className="w-5 h-5" />
+          </button>
+
+          {/* Group members settings button */}
+          <button
+            onClick={() => setShowMemberSettings(true)}
+            className=" p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
+            title="Members settings"
+          >
+            <BsPersonFillGear className="w-5 h-5" />
+          </button>
+
+          {isAdmin && (
+            // Delete button
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
+              title="Delete message"
+            >
+              <BsTrash3Fill className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Logout button */}
+          <button
+            onClick={() => {
+              localStorage.removeItem("username");
+              navigate("/");
+            }}
+            className=" p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
+            title="Logout"
+          >
+            <BsBoxArrowRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
+
+      {/* Group Members setting popup */}
+      {showMemberSettings && (
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs bg-opacity-40 z-50 ">
+          <div className="bg-white p-6 rounded shadow-lg max-w-xs w-full">
+            <h3 className="text-lg font-bold mb-2 text-green-600 text-center">
+              Members
+            </h3>
+            
+          </div>
+        </div>
+      )}
+
+      {/* Delete Group Confirmation Popup */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs bg-opacity-40 z-50 ">
+          <div className="bg-white p-6 rounded shadow-lg max-w-xs w-full">
+            <h3 className="text-lg font-bold mb-2 text-red-600 text-center">
+              Delete Group !?
+            </h3>
+            <p className="mb-4 text-gray-700 text-center">
+              Sure you want to delete this group ? <br /> This action{" "}
+              <span className="font-extrabold underline">
+                cannot be undone!
+              </span>
+            </p>
+            <div className="flex justify-center gap-2">
+              <button
+                className="px-3 py-1 bg-gray-200 rounded transition-all duration-200 hover:scale-110 hover:bg-gray-300 cursor-pointer"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-1 bg-red-600 text-white rounded transition-all duration-200 hover:scale-110 hover:bg-red-700 cursor-pointer"
+                onClick={handleDeleteGroup}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div
         className="flex-1 overflow-y-auto my-3 space-y-2"
