@@ -9,7 +9,7 @@ import {
   BsBoxArrowRight,
   BsGearFill,
   BsPersonFillGear,
-  BsTrash,
+  BsPersonFillSlash,
   BsTrash3Fill,
 } from "react-icons/bs";
 import {
@@ -18,6 +18,7 @@ import {
   getGroupMessages,
   deleteGroup,
   removeMember,
+  updateGroupSettings,
 } from "../services/api";
 import ChatMessageComponent from "../components/ChatMessage";
 
@@ -41,6 +42,9 @@ const ChatRoom: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMemberSettings, setShowMemberSettings] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [membersList, setMembersList] = useState<string[]>([]);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newExpiryTime, setNewExpiryTime] = useState(60);
 
   // fetch persisted messages
   useEffect(() => {
@@ -169,6 +173,23 @@ const ChatRoom: React.FC = () => {
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
+  // fetch group members
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const response = await getGroupInfo(groupName!);
+        setMembersList(response.data.members || []);
+      } catch (error) {
+        console.error("Failed to fetch group members:", error);
+        setMembersList([]);
+      }
+    };
+
+    if (groupName) {
+      fetchMembers();
+    }
+  }, [groupName]);
+
   // Scroll to bottom logic and show/hide button
   const handleScroll = useCallback(() => {
     const el = messageListRef.current;
@@ -293,19 +314,37 @@ const ChatRoom: React.FC = () => {
     }
   };
 
-  const handleRemoveMember = async () => {
+  const handleRemoveMember = async (targetUser: string) => {
     try {
-      await removeMember(groupName!, username!, username!);
+      await removeMember(groupName!, username!, targetUser);
+      // update member list
+      setMembersList((prev) => prev.filter((member) => member !== targetUser));
     } catch (error) {
-      alert("Failed to remove member.");
+      console.error("Failed to remove member:", error);
+      alert("Failed to remove member");
     }
   };
 
-  const [membersList] = useState([
-    { memberName: "Alice" },
-    { memberName: "Bob" },
-    { memberName: "Charlie" },
-  ]);
+  const handleUpdateGroup = async () => {
+    try {
+      // update group settings
+      await updateGroupSettings(groupName!, {
+        newName: newGroupName,
+        expiryMinutes: newExpiryTime,
+      });
+
+      // update local state
+      if (newGroupName) {
+        setResolvedGroupName(newGroupName);
+      }
+
+      // setShowGroupSettings(false);
+      alert("Group settings updated!");
+    } catch (error) {
+      console.error("Failed to update group settings:", error);
+      alert("Failed to update group settings");
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-slate-50 to-green-200 px-2 pt-4 pb-3">
@@ -372,13 +411,54 @@ const ChatRoom: React.FC = () => {
       {/* Group settings popup */}
       {showGroupSettings && (
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs z-50">
-          <div className="bg-white p-6 rounded shadow-lg max-w-xs w-full">
+          <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-full">
             <h3 className="text-lg font-bold mb-2 text-green-600 text-center">
               Group Settings{" "}
               <span className="drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
                 ⚙️
               </span>
             </h3>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">
+                Group Name
+              </label>
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder={resolvedGroupName}
+                className="w-full p-2 border rounded"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">
+                Extend Expiry (default {newExpiryTime} minutes)
+              </label>
+              <input
+                type="number"
+                value={newExpiryTime}
+                onChange={(e) => setNewExpiryTime(parseInt(e.target.value))}
+                min="1"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+
+            <div className="flex justify-center gap-2">
+              <button
+                onClick={handleUpdateGroup}
+                className="flex-1 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-all duration-200 hover:scale-110 cursor-pointer border border-black"
+              >
+                Update
+              </button>
+              <button
+                onClick={() => setShowGroupSettings(false)}
+                className="flex-1 px-3 py-1 bg-gray-200 rounded transition-all duration-200 hover:scale-110 hover:bg-gray-300 cursor-pointer border border-black"
+              >
+                Cancel
+              </button>
+            </div>
 
             {/* Back button */}
             <div className="flex justify-center mt-4">
@@ -397,24 +477,26 @@ const ChatRoom: React.FC = () => {
       {/* Group Members setting popup */}
       {showMemberSettings && (
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs bg-opacity-40 z-50 ">
-          <div className="bg-white p-6 rounded shadow-lg max-w-xs w-full">
+          <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-full">
             <h3 className="text-lg font-bold mb-2 text-green-600 text-center">
               Members 😎
             </h3>
-            <ul>
+            <ul className="list-disc">
               {membersList.map((member) => (
                 <li
-                  key={member.memberName}
+                  key={member}
                   className="flex justify-center items-center py-1"
                 >
-                  <span>{member.memberName}</span>
-                  <button
-                    className="ml-2 px-2 py-1 bg-red-100 rounded-full transition-all duration-200 hover:bg-red-200 hover:scale-110 text-red-600 rounded text-xs cursor-pointer border border-red"
-                    onClick={handleRemoveMember}
-                    title="Remove member"
-                  >
-                    <BsTrash className="" />
-                  </button>
+                  <span className="text-lg">{member}</span>
+                  {member !== username && (
+                    <button
+                      className="ml-2 px-1 py-1 bg-red-100 rounded-full transition-all duration-200 hover:bg-red-200 hover:scale-110 text-red-600 rounded text-sm cursor-pointer border border-red"
+                      onClick={() => handleRemoveMember(member)}
+                      title="Remove member"
+                    >
+                      <BsPersonFillSlash className="" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -448,13 +530,13 @@ const ChatRoom: React.FC = () => {
             </p>
             <div className="flex justify-center gap-2">
               <button
-                className="px-3 py-1 bg-gray-200 rounded transition-all duration-200 hover:scale-110 hover:bg-gray-300 cursor-pointer"
+                className="flex-1 px-3 py-1 bg-gray-200 rounded transition-all duration-200 hover:scale-110 hover:bg-gray-300 cursor-pointer border border-black"
                 onClick={() => setShowDeleteConfirm(false)}
               >
                 Cancel
               </button>
               <button
-                className="px-3 py-1 bg-red-600 text-white rounded transition-all duration-200 hover:scale-110 hover:bg-red-700 cursor-pointer"
+                className="flex-1 px-3 py-1 bg-red-600 text-white rounded transition-all duration-200 hover:scale-110 hover:bg-red-700 cursor-pointer border border-black"
                 onClick={handleDeleteGroup}
               >
                 Delete
