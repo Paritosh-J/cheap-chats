@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createGroup, joinGroup, getUserGroups } from "../services/api";
-import { BsArrow90DegLeft, BsArrowLeft, BsArrowRight, BsBoxArrowRight, BsX } from "react-icons/bs";
+import { BsArrowRight, BsBoxArrowRight, BsX } from "react-icons/bs";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import type { ChatGroup } from "../types";
 
@@ -131,6 +131,9 @@ const GroupPage: React.FC = () => {
             placeholder="Group Name"
             className="w-full mb-2 p-2 border border-gray-300 rounded"
           />
+          <h3 className="font-medium mb-2 text-gray-700">
+            Expiry in.. (default {expiry} minutes)
+          </h3>
           <input
             type="number"
             value={expiry}
