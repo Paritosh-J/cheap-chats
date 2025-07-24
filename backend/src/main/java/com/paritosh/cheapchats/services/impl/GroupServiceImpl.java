@@ -163,6 +163,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     public void deleteGroup(String groupName) {
         chatGroupRepository.deleteById(groupName);
+        log.info("Group deleted: {}", groupName);
     }
 
 }
