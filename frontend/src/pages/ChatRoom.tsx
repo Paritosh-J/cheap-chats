@@ -314,11 +314,11 @@ const ChatRoom: React.FC = () => {
     }
   };
 
-  const handleRemoveMember = async (targetUser: string) => {
+  const handleRemoveMember = async (targetMember: string) => {
     try {
-      await removeMember(groupName!, username!, targetUser);
+      await removeMember(groupName!, targetMember!);
       // update member list
-      setMembersList((prev) => prev.filter((member) => member !== targetUser));
+      setMembersList((prev) => prev.filter((member) => member !== targetMember));
     } catch (error) {
       console.error("Failed to remove member:", error);
       alert("Failed to remove member");
