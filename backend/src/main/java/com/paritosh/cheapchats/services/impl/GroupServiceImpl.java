@@ -11,7 +11,10 @@ import com.paritosh.cheapchats.models.ChatGroup;
 import com.paritosh.cheapchats.repositories.ChatGroupRepository;
 import com.paritosh.cheapchats.services.GroupService;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@Slf4j
 public class GroupServiceImpl implements GroupService {
 
     @Autowired
@@ -23,13 +26,13 @@ public class GroupServiceImpl implements GroupService {
         // Validate input parameters
         if (groupName == null || groupName.isEmpty() || createdBy == null || createdBy.isEmpty() || validMinutes <= 0) {
 
-            System.out.println("Invalid group creation parameters: " + groupName + ", " + createdBy + ", " + validMinutes);
+            log.info("Invalid group creation parameters: {}, {}, {}", groupName, createdBy, validMinutes);
             throw new IllegalArgumentException("Invalid group name, creator or validity period.");
 
         }
 
-        if(chatGroupRepository.existsByGroupName(groupName)) {
-            System.out.println("Group already exists: " + groupName);
+        if (chatGroupRepository.existsByGroupName(groupName)) {
+            log.info("Group already exists: {}", groupName);
             throw new IllegalArgumentException("Group with this groupName already exists.");
         }
 
@@ -47,7 +50,7 @@ public class GroupServiceImpl implements GroupService {
         String formattedDate = chatGroup.getExpiresAt().format(formatter);
 
         // log group creation
-        System.out.println("Group created: " + groupName + " by " + createdBy + ", expires at: " + formattedDate);
+        log.info("Group created: {} by {}, expires at: {}", groupName, createdBy, formattedDate);
 
         // save changes
         return chatGroupRepository.save(chatGroup);
@@ -69,7 +72,7 @@ public class GroupServiceImpl implements GroupService {
                 group.getMembers().add(userName);
 
                 // log user joining
-                System.out.println("JOIN: User " + userName + " joined group: " + groupName);
+                log.info("JOIN: User {} joined group: {}", userName, groupName);
 
                 // save changes
                 chatGroupRepository.save(group);
@@ -98,7 +101,7 @@ public class GroupServiceImpl implements GroupService {
                 group.getMembers().remove(userName);
 
                 // log user leaving
-                System.out.println("LEFT: User " + userName + " left group: " + groupName);
+                log.info("LEFT: User {} left group {}", userName, groupName);
 
                 // save changes
                 chatGroupRepository.save(group);
@@ -114,8 +117,9 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public boolean removeMember(String groupName, String requester, String targetUser) {
+    public boolean removeMember(String groupName, String targetUser) {
 
+        log.info("inside groupServiceImpl removeMember");
         Optional<ChatGroup> groupOptional = chatGroupRepository.findById(groupName);
 
         // Check if the group exists
@@ -123,13 +127,15 @@ public class GroupServiceImpl implements GroupService {
             ChatGroup group = groupOptional.get();
 
             // Check if user is a member of the group
-            if (group.getCreatedBy().equals(requester)) {
+            if (group.getMembers().contains(targetUser)) {
 
-                // Only group creator can remove members
+                log.info("removing {} from {}", targetUser, groupName);
+
+                // remove from member list
                 group.getMembers().remove(targetUser);
 
                 // log member removal
-                System.out.println("REMOVED: User " + targetUser + " removed from " + groupName);
+                log.info("REMOVED: User {} removed from {}", targetUser, groupName);
 
                 // save changes
                 chatGroupRepository.save(group);

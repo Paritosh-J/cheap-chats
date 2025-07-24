@@ -1,14 +1,15 @@
 package com.paritosh.cheapchats.controller;
 
-import java.util.Map;
-import java.util.UUID;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,17 +17,19 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.DeleteMapping;
 
 import com.paritosh.cheapchats.models.ChatGroup;
 import com.paritosh.cheapchats.models.User;
 import com.paritosh.cheapchats.repositories.UserRepository;
 import com.paritosh.cheapchats.services.GroupService;
 
+import lombok.extern.slf4j.Slf4j;
+
 @RestController
 @RequestMapping("/api")
 @CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true") // Allow all origins for CORS
 // This allows the frontend to communicate with the backend without CORS issues
+@Slf4j
 public class GroupController {
 
     @Autowired
@@ -56,7 +59,7 @@ public class GroupController {
         }
 
         // log user login
-        System.out.println("LOGIN: User: " + username);
+        log.info("LOGIN: User: {}", username);
 
         // If the user already exists, return the user
         return Map.of("status", "ok", "username", username);
@@ -123,11 +126,12 @@ public class GroupController {
     @PostMapping("/group/{groupName}/remove")
     public Map<String, String> removeMember(
             @PathVariable String groupName,
-            @RequestParam String requester,
             @RequestParam String targetUser
     ) {
 
-        boolean success = groupService.removeMember(groupName, requester, targetUser);
+        log.info("inside controller removeMember");
+
+        boolean success = groupService.removeMember(groupName, targetUser);
 
         return Map.of("removed", String.valueOf(success));
 
