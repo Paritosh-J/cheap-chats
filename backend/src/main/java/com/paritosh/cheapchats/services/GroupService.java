@@ -12,7 +12,7 @@ public interface GroupService {
 
     boolean leaveChatGroup(String groupName, String userName);
 
-    boolean removeMember(String groupName, String requester, String targetUser);
+    boolean removeMember(String groupName, String targetUser);
 
     java.util.List<ChatGroup> getGroupsForUser(String username);
     
