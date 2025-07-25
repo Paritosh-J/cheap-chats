@@ -67,7 +67,7 @@ export const deleteGroup = async (groupName: string, username: string) =>
 
 export const updateGroupSettings = async (
   groupName: string,
-  settings: { newName?: string; expiryMinutes?: number }
+  settings: { newGroupName?: string; newExpiryMinutes?: number }
 ) => {
   return axios.put(`${BASE_URL}/group/${groupName}/settings`, settings);
 };
