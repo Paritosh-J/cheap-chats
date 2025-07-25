@@ -22,9 +22,12 @@ import com.paritosh.cheapchats.dto.ChatMessageDto;
 import com.paritosh.cheapchats.models.ChatMessage;
 import com.paritosh.cheapchats.repositories.ChatMessageRepository;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Controller
 @RestController
 @RequestMapping("/api/messages")
+@Slf4j
 public class ChatController {
 
     @Autowired
@@ -55,12 +58,12 @@ public class ChatController {
             // Save message to database
             ChatMessage savedEntity = chatMessageRepository.save(entity);
             messageDto.setId(savedEntity.getId()); // Set the ID from saved entity
-            System.out.println("Message saved: " + entity.getContent() + "; Group: " + groupName + "; ID: " + savedEntity.getId());
+            log.info("Message saved: " + entity.getContent() + "; Group: " + groupName + "; ID: " + savedEntity.getId());
 
             // Send to WebSocket subscribers
             messagingTemplate.convertAndSend("/topic/group/" + groupName, messageDto);
 
-            System.out.println("Message sent: " + messageDto.getContent() + "; Group: " + groupName);
+            log.info("Message sent: " + messageDto.getContent() + "; Group: " + groupName);
         } catch (MessagingException e) {
             System.err.println("Invalid groupId: " + groupName);
         }
@@ -76,13 +79,13 @@ public class ChatController {
 
             // Check if the user is the sender of the message
             if (!message.getSender().equals(username)) {
-                System.out.println("DELETE DENIED: User " + username + " tried to delete message " + messageId + " sent by " + message.getSender());
+                log.info("DELETE DENIED: User " + username + " tried to delete message " + messageId + " sent by " + message.getSender());
                 return;
             }
 
             // Delete from database
             chatMessageRepository.deleteById(messageId);
-            System.out.println("DELETE: User " + username + " deleted message " + messageId + " from group " + groupName);
+            log.info("DELETE: User " + username + " deleted message " + messageId + " from group " + groupName);
 
             // Create delete notification DTO
             ChatMessageDto deleteDto = new ChatMessageDto();
@@ -94,8 +97,8 @@ public class ChatController {
 
             // Broadcast delete notification to all subscribers
             messagingTemplate.convertAndSend("/topic/group/" + groupName, deleteDto);
-            System.out.println("DELETE NOTIFICATION SENT: Message " + messageId + " delete notification broadcasted to group " + groupName);
-            System.out.println("DELETE DTO: " + deleteDto.toString());
+            log.info("DELETE NOTIFICATION SENT: Message " + messageId + " delete notification broadcasted to group " + groupName);
+            log.info("DELETE DTO: " + deleteDto.toString());
 
         } catch (MessagingException e) {
             System.err.println("Error deleting message " + messageId + ": " + e.getMessage());
