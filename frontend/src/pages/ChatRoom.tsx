@@ -318,7 +318,9 @@ const ChatRoom: React.FC = () => {
     try {
       await removeMember(groupName!, targetMember!);
       // update member list
-      setMembersList((prev) => prev.filter((member) => member !== targetMember));
+      setMembersList((prev) =>
+        prev.filter((member) => member !== targetMember)
+      );
     } catch (error) {
       console.error("Failed to remove member:", error);
       alert("Failed to remove member");
@@ -329,8 +331,8 @@ const ChatRoom: React.FC = () => {
     try {
       // update group settings
       await updateGroupSettings(groupName!, {
-        newName: newGroupName,
-        expiryMinutes: newExpiryTime,
+        newGroupName: newGroupName,
+        newExpiryMinutes: newExpiryTime,
       });
 
       // update local state
@@ -341,8 +343,21 @@ const ChatRoom: React.FC = () => {
       // setShowGroupSettings(false);
       alert("Group settings updated!");
     } catch (error) {
+      // group already exists
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        (error as any).response?.data?.message?.includes("already exists")
+      ) {
+        alert(
+          "A group with this name already exists. Please choose a different name."
+        );
+      } else {
+        alert("Failed to update group settings");
+      }
+
       console.error("Failed to update group settings:", error);
-      alert("Failed to update group settings");
     }
   };
 
@@ -430,6 +445,11 @@ const ChatRoom: React.FC = () => {
                 placeholder={resolvedGroupName}
                 className="w-full p-2 border rounded"
               />
+              {newGroupName === resolvedGroupName && newGroupName !== "" && (
+                <p className="text-red-500 text-sm text-center">
+                  This name already exists!
+                </p>
+              )}
             </div>
 
             <div className="mb-4">
@@ -448,6 +468,7 @@ const ChatRoom: React.FC = () => {
             <div className="flex justify-center gap-2">
               <button
                 onClick={handleUpdateGroup}
+                id="groupUpdateButton"
                 className="flex-1 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-all duration-200 hover:scale-110 cursor-pointer border border-black"
               >
                 Update

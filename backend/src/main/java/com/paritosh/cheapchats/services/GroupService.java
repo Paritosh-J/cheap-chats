@@ -12,6 +12,8 @@ public interface GroupService {
 
     boolean leaveChatGroup(String groupName, String userName);
 
+    public boolean updateGroupInfo(String groupName, String newName, Integer newExpiryInMins);
+
     boolean removeMember(String groupName, String targetUser);
 
     java.util.List<ChatGroup> getGroupsForUser(String username);
