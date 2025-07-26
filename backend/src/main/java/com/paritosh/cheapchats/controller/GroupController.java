@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.paritosh.cheapchats.models.ChatGroup;
 import com.paritosh.cheapchats.models.User;
+import com.paritosh.cheapchats.repositories.ChatGroupRepository;
 import com.paritosh.cheapchats.repositories.UserRepository;
 import com.paritosh.cheapchats.services.GroupService;
 
@@ -40,6 +41,9 @@ public class GroupController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private ChatGroupRepository chatGroupRepository;
 
     // LOGIN
     @PostMapping("/login")
@@ -125,6 +129,30 @@ public class GroupController {
 
     }
 
+    // Check for existing group name
+    @GetMapping("/group/{groupName}/checkName")
+    public ResponseEntity<Map<String, Boolean>> checkGroupNameExists(@PathVariable String groupName) {
+
+        boolean exists = chatGroupRepository.existsByGroupName(groupName);
+
+        return ResponseEntity.ok(Map.of("exists", exists));
+
+    }
+
+    // List all groups for a user (not expired)
+    @GetMapping("/groups")
+    public List<ChatGroup> getUserGroups(@RequestParam String username) {
+
+        List<ChatGroup> allGroups = groupService.getGroupsForUser(username);
+        LocalDateTime now = LocalDateTime.now();
+        // Filter out expired groups
+
+        return allGroups.stream()
+                .filter(group -> group.getExpiresAt() != null && group.getExpiresAt().isAfter(now))
+                .toList();
+    }
+
+    // UPDATE GROUP SETTINGS
     @PutMapping("/group/{groupName}/settings")
     public Map<String, String> updateGroupInfo(@PathVariable String groupName, @RequestBody String jsonBody) {
 
@@ -150,19 +178,6 @@ public class GroupController {
 
         return Map.of("removed", String.valueOf(success));
 
-    }
-
-    // List all groups for a user (not expired)
-    @GetMapping("/groups")
-    public List<ChatGroup> getUserGroups(@RequestParam String username) {
-
-        List<ChatGroup> allGroups = groupService.getGroupsForUser(username);
-        LocalDateTime now = LocalDateTime.now();
-        // Filter out expired groups
-
-        return allGroups.stream()
-                .filter(group -> group.getExpiresAt() != null && group.getExpiresAt().isAfter(now))
-                .toList();
     }
 
     // Delete a group (admin only)
