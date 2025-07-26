@@ -65,6 +65,9 @@ export const getUserGroups = async (username: string) =>
 export const deleteGroup = async (groupName: string, username: string) =>
   axios.delete(`${BASE_URL}/group/${groupName}`, { params: { username } });
 
+export const checkGroupNameExists = async (groupName: string) =>
+  axios.get(`${BASE_URL}/group/${groupName}/checkName`);
+
 export const updateGroupSettings = async (
   groupName: string,
   settings: { newGroupName?: string; newExpiryMinutes?: number }
