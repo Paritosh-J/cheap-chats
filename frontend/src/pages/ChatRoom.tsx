@@ -19,6 +19,7 @@ import {
   deleteGroup,
   removeMember,
   updateGroupSettings,
+  checkGroupNameExists,
 } from "../services/api";
 import ChatMessageComponent from "../components/ChatMessage";
 
@@ -43,6 +44,8 @@ const ChatRoom: React.FC = () => {
   const [showMemberSettings, setShowMemberSettings] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [membersList, setMembersList] = useState<string[]>([]);
+  const [isNameTaken, setIsNameTaken] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newExpiryTime, setNewExpiryTime] = useState(60);
 
@@ -361,6 +364,34 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  const checkGroupName = useCallback(async (name: string) => {
+    if (!name) {
+      setIsNameTaken(false);
+      return;
+    }
+
+    setIsChecking(true);
+    try {
+      const response = await checkGroupNameExists(name);
+      setIsNameTaken(response.data.exists);
+    } catch (error) {
+      console.error("Failed to check group name:", error);
+    } finally {
+      setIsChecking(false);
+    }
+  }, []);
+
+  // Add debounce to avoid too many API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (newGroupName && newGroupName !== resolvedGroupName) {
+        checkGroupName(newGroupName);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [newGroupName, checkGroupName, resolvedGroupName]);
+
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-slate-50 to-green-200 px-2 pt-4 pb-3">
       <div className="flex items-center justify-between border border-black p-2 bg-white text-black rounded">
@@ -443,10 +474,17 @@ const ChatRoom: React.FC = () => {
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
                 placeholder={resolvedGroupName}
-                className="w-full p-2 border rounded"
+                className={`w-full p-2 border rounded ${
+                  isNameTaken ? "border-red-500" : ""
+                }`}
               />
-              {newGroupName === resolvedGroupName && newGroupName !== "" && (
-                <p className="text-red-500 text-sm text-center">
+              {isChecking && (
+                <p className="text-gray-500 text-sm mt-1">
+                  Checking availability...
+                </p>
+              )}
+              {isNameTaken && !isChecking && (
+                <p className="text-center text-red-500 text-sm mt-1">
                   This name already exists!
                 </p>
               )}
@@ -454,7 +492,7 @@ const ChatRoom: React.FC = () => {
 
             <div className="mb-4">
               <label className="block text-sm font-medium mb-1">
-                Extend Expiry (default {newExpiryTime} minutes)
+                Extend Expiry (default 60 minutes)
               </label>
               <input
                 type="number"
@@ -468,8 +506,14 @@ const ChatRoom: React.FC = () => {
             <div className="flex justify-center gap-2">
               <button
                 onClick={handleUpdateGroup}
-                id="groupUpdateButton"
-                className="flex-1 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-all duration-200 hover:scale-110 cursor-pointer border border-black"
+                disabled={
+                  isNameTaken || isChecking || (!newGroupName && !newExpiryTime)
+                }
+                className={`flex-1 px-3 py-1 ${
+                  isNameTaken || isChecking || (!newGroupName && !newExpiryTime)
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-500 hover:bg-blue-600 hover:scale-110"
+                } text-white rounded transition-all duration-200 cursor-pointer border border-black`}
               >
                 Update
               </button>
