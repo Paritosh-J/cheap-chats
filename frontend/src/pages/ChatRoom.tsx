@@ -319,7 +319,7 @@ const ChatRoom: React.FC = () => {
 
   const handleRemoveMember = async (targetMember: string) => {
     try {
-      await removeMember(groupName!, targetMember!);
+      await removeMember(groupName!, targetMember);
       // update member list
       setMembersList((prev) =>
         prev.filter((member) => member !== targetMember)
