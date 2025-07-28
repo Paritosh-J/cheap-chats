@@ -13,7 +13,6 @@ import com.paritosh.cheapchats.models.ChatGroup;
 import com.paritosh.cheapchats.models.ChatMessage;
 import com.paritosh.cheapchats.repositories.ChatGroupRepository;
 import com.paritosh.cheapchats.repositories.ChatMessageRepository;
-import com.paritosh.cheapchats.repositories.UserRepository;
 import com.paritosh.cheapchats.services.GroupService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -27,9 +26,6 @@ public class GroupServiceImpl implements GroupService {
 
     @Autowired
     private ChatMessageRepository chatMessageRepository;
-
-    @Autowired
-    private UserRepository userRepository;
 
     @Override
     public ChatGroup createChatGroup(String groupName, String createdBy, int validMinutes) {
@@ -214,8 +210,8 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public java.util.List<ChatGroup> getGroupsForUser(String username) {
-        return chatGroupRepository.findByMembersContaining(username);
+    public List<ChatGroup> getGroupsForUser(String userName) {
+        return chatGroupRepository.findByMembersContaining(userName);
     }
 
     @Override
