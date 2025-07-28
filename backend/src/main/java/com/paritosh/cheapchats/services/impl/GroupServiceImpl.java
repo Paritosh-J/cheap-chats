@@ -210,8 +210,8 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public java.util.List<ChatGroup> getGroupsForUser(String username) {
-        return chatGroupRepository.findByMembersContaining(username);
+    public List<ChatGroup> getGroupsForUser(String userName) {
+        return chatGroupRepository.findByMembersContaining(userName);
     }
 
     @Override
