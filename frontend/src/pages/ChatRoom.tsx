@@ -430,7 +430,7 @@ const ChatRoom: React.FC = () => {
           </button>
 
           {isAdmin && (
-            // Delete button
+            // Delete group button
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
