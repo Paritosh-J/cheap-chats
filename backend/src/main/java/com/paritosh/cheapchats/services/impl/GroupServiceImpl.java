@@ -13,6 +13,7 @@ import com.paritosh.cheapchats.models.ChatGroup;
 import com.paritosh.cheapchats.models.ChatMessage;
 import com.paritosh.cheapchats.repositories.ChatGroupRepository;
 import com.paritosh.cheapchats.repositories.ChatMessageRepository;
+import com.paritosh.cheapchats.repositories.UserRepository;
 import com.paritosh.cheapchats.services.GroupService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,9 @@ public class GroupServiceImpl implements GroupService {
 
     @Autowired
     private ChatMessageRepository chatMessageRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Override
     public ChatGroup createChatGroup(String groupName, String createdBy, int validMinutes) {
@@ -196,36 +200,16 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public boolean removeMember(String groupName, String targetUser) {
+    public void removeMember(String groupName, String targetMember) {
 
-        log.info("inside groupServiceImpl removeMember");
-        Optional<ChatGroup> groupOptional = chatGroupRepository.findById(groupName);
+        log.info("inside removeMember");
 
-        // Check if the group exists
-        if (groupOptional.isPresent()) {
-            ChatGroup group = groupOptional.get();
+        // get group and remove user
+        ChatGroup group = chatGroupRepository.findById(groupName).get();
+        group.getMembers().remove(targetMember);
+        chatGroupRepository.save(group);
 
-            // Check if user is a member of the group
-            if (group.getMembers().contains(targetUser)) {
-
-                log.info("removing {} from {}", targetUser, groupName);
-
-                // remove from member list
-                group.getMembers().remove(targetUser);
-
-                // log member removal
-                log.info("REMOVED: User {} removed from {}", targetUser, groupName);
-
-                // save changes
-                chatGroupRepository.save(group);
-
-                // Successfully removed the member
-                return true;
-            }
-        }
-
-        // User was not a member or group does not exist
-        return false;
+        log.info("REMOVED: {} removed from {}", targetMember, groupName);
 
     }
 

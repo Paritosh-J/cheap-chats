@@ -166,23 +166,25 @@ public class GroupController {
     }
 
     // REMOVE MEMBER
-    @PostMapping("/group/{groupName}/remove")
-    public Map<String, String> removeMember(
+    @DeleteMapping("/group/{groupName}/remove")
+    public ResponseEntity<?> removeMember(
             @PathVariable String groupName,
-            @RequestParam String targetUser
+            @RequestParam String targetMember
     ) {
 
         log.info("inside controller removeMember");
 
-        boolean success = groupService.removeMember(groupName, targetUser);
+        groupService.removeMember(groupName, targetMember);
 
-        return Map.of("removed", String.valueOf(success));
+        return ResponseEntity.ok(Map.of("removed", true));
 
     }
 
     // Delete a group (admin only)
     @DeleteMapping("/group/{groupName}")
     public ResponseEntity<?> deleteGroup(@PathVariable String groupName, @RequestParam String username) {
+
+        log.info("inside controller deleteGroup");
 
         ChatGroup group = groupService.getGroupByName(groupName);
 
