@@ -134,63 +134,59 @@ public class GroupServiceImpl implements GroupService {
             return false;
         }
 
-        Optional<ChatGroup> groupOptional = chatGroupRepository.findById(groupName);
+        ChatGroup oldGroup = chatGroupRepository.findById(groupName).get();
+        ChatGroup newGroup = new ChatGroup();
 
         // Check if the group exists
-        if (groupOptional.isPresent()) {
-            ChatGroup oldGroup = groupOptional.get();
-            ChatGroup newGroup = new ChatGroup();
+        if (newGroupName != null && !newGroupName.equals(groupName)) {
 
-            if (newGroupName != null && !newGroupName.equals(groupName)) {
+            // Check if a group with new name already exists
+            if (chatGroupRepository.existsByGroupName(newGroupName)) {
 
-                // Check if a group with new name already exists
-                if (chatGroupRepository.existsByGroupName(newGroupName)) {
+                log.error("Group with name {} already exists", newGroupName);
 
-                    log.error("Group with name {} already exists", newGroupName);
+                throw new IllegalArgumentException("Group with this name already exists");
 
-                    throw new IllegalArgumentException("Group with this name already exists");
-
-                }
-
-                // Create new group with updated name
-                newGroup.setGroupName(newGroupName);
-                newGroup.setCreatedBy(oldGroup.getCreatedBy());
-                newGroup.setMembers(new ArrayList<>(oldGroup.getMembers()));
-                newGroup.setExpiresAt(newExpiryInMins != null
-                        ? LocalDateTime.now().plusMinutes(newExpiryInMins)
-                        : oldGroup.getExpiresAt());
-
-                // Save new group
-                chatGroupRepository.save(newGroup);
-
-                // Update messages to point to new group
-                List<ChatMessage> messages = chatMessageRepository.findByGroupNameOrderByTimestampAsc(groupName);
-                for (ChatMessage message : messages) {
-                    message.setGroupName(newGroupName);
-                }
-                chatMessageRepository.saveAll(messages);
-
-                // Delete old group
-                chatGroupRepository.delete(oldGroup);
-
-                log.info("Group successfully renamed from {} to {}", groupName, newGroupName);
-
-                // name updation successfull
-                return true;
-
-            } else if (newExpiryInMins != null) {
-
-                // Only update expiry time
-                oldGroup.setExpiresAt(LocalDateTime.now().plusMinutes(newExpiryInMins));
-
-                // save changes
-                chatGroupRepository.save(oldGroup);
-
-                log.info("Updated expiry time for group {}", groupName);
-
-                // expiry time updation successfull
-                return true;
             }
+
+            // Create new group with updated name
+            newGroup.setGroupName(newGroupName);
+            newGroup.setCreatedBy(oldGroup.getCreatedBy());
+            newGroup.setMembers(new ArrayList<>(oldGroup.getMembers()));
+            newGroup.setExpiresAt(newExpiryInMins != null
+                    ? LocalDateTime.now().plusMinutes(newExpiryInMins)
+                    : oldGroup.getExpiresAt());
+
+            // Save new group
+            chatGroupRepository.save(newGroup);
+
+            // Update messages to point to new group
+            List<ChatMessage> messages = chatMessageRepository.findByGroupNameOrderByTimestampAsc(groupName);
+            for (ChatMessage message : messages) {
+                message.setGroupName(newGroupName);
+            }
+            chatMessageRepository.saveAll(messages);
+
+            // Delete old group
+            chatGroupRepository.delete(oldGroup);
+
+            log.info("Group successfully renamed from {} to {}", groupName, newGroupName);
+
+            // name updation successfull
+            return true;
+
+        } else if (newExpiryInMins != null) {
+
+            // Only update expiry time
+            oldGroup.setExpiresAt(LocalDateTime.now().plusMinutes(newExpiryInMins));
+
+            // save changes
+            chatGroupRepository.save(oldGroup);
+
+            log.info("Updated expiry time for group {}", groupName);
+
+            // expiry time updation successfull
+            return true;
         }
 
         log.warn("group {} already exists", groupName);
