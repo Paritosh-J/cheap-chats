@@ -612,9 +612,11 @@ const ChatRoom: React.FC = () => {
       )}
 
       <div
-        className="flex-1 overflow-y-auto my-3 space-y-2"
+        className="flex-1 overflow-y-auto my-3 space-y-2 messages-container"
         ref={messageListRef}
-        style={{ position: "relative" }}
+        style={{
+          scrollbarWidth: "thin",
+        }}
       >
         {messages.map((msg, idx) => (
           <ChatMessageComponent
