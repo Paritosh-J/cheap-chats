@@ -47,6 +47,8 @@ const ChatRoom: React.FC = () => {
   const [isNameTaken, setIsNameTaken] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [expiryTime, setExpiryTime] = useState<Date | null>(null);
+  const [timeLeft, setTimeLeft] = useState<string>("--:--");
   const [newExpiryTime, setNewExpiryTime] = useState(60);
 
   // fetch persisted messages
@@ -308,27 +310,49 @@ const ChatRoom: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleDeleteGroup = async () => {
-    try {
-      await deleteGroup(groupName!, username!);
-      navigate("/group"); // or navigate to group list page
-    } catch (error) {
-      alert("Failed to delete group. You may not have permission.");
-    }
+  const formatTimeLeft = (milliseconds: number): string => {
+    if (milliseconds < 0) return "00:00";
+
+    const minutes = Math.floor(milliseconds / 60000);
+    const seconds = Math.floor((milliseconds % 60000) / 1000);
+
+    return `${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}`;
   };
 
-  const handleRemoveMember = async (targetMember: string) => {
-    try {
-      await removeMember(groupName!, targetMember);
-      // update member list
-      setMembersList((prev) =>
-        prev.filter((member) => member !== targetMember)
-      );
-    } catch (error) {
-      console.error("Failed to remove member:", error);
-      alert("Failed to remove member");
-    }
-  };
+  // expiry timer
+  useEffect(() => {
+    const fetchExpiryTime = async () => {
+      try {
+        const response = await getGroupInfo(groupName!);
+        if (response.data.expiryTime) {
+          setExpiryTime(new Date(response.data.expiryTime));
+        }
+      } catch (err) {
+        console.error("Failed to fetch expiry time:", err);
+      }
+    };
+
+    fetchExpiryTime();
+
+    // update timere every second
+    const timer = setInterval(() => {
+      if (expiryTime) {
+        const now = new Date();
+        const diff = expiryTime.getTime() - now.getTime();
+        setTimeLeft(formatTimeLeft(diff));
+
+        // if expired
+        if (diff <= 0) {
+          clearInterval(timer);
+          navigate("/group"); // redirect
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [groupName, expiryTime, navigate]);
 
   const handleUpdateGroup = async () => {
     try {
@@ -341,6 +365,12 @@ const ChatRoom: React.FC = () => {
       // update local state
       if (newGroupName) {
         setResolvedGroupName(newGroupName);
+      }
+
+      // Refresh expiry time
+      const response = await getGroupInfo(groupName!);
+      if (response.data.expiryTime) {
+        setExpiryTime(new Date(response.data.expiryTime));
       }
 
       // setShowGroupSettings(false);
@@ -381,6 +411,28 @@ const ChatRoom: React.FC = () => {
     }
   }, []);
 
+  const handleDeleteGroup = async () => {
+    try {
+      await deleteGroup(groupName!, username!);
+      navigate("/group"); // or navigate to group list page
+    } catch (error) {
+      alert("Failed to delete group. You may not have permission.");
+    }
+  };
+
+  const handleRemoveMember = async (targetMember: string) => {
+    try {
+      await removeMember(groupName!, targetMember);
+      // update member list
+      setMembersList((prev) =>
+        prev.filter((member) => member !== targetMember)
+      );
+    } catch (error) {
+      console.error("Failed to remove member:", error);
+      alert("Failed to remove member");
+    }
+  };
+
   // Add debounce to avoid too many API calls
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -406,7 +458,12 @@ const ChatRoom: React.FC = () => {
           <BsArrowLeft className="w-5 h-5" />
         </button>
 
-        <h2 className="text-xl font-bold">#{resolvedGroupName}</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-xl font-bold">#{resolvedGroupName}</h2>
+          <div className="ml-3 flex items-center bg-gray-100 px-3 py-1 rounded-full border border-gray-300">
+            <span className="font-bold text-gray-600">⏳ {timeLeft}</span>
+          </div>
+        </div>
 
         <div className="flex items-center gap-2">
           {/* Group settings button */}
