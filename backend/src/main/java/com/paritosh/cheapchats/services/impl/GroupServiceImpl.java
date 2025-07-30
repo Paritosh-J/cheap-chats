@@ -49,12 +49,12 @@ public class GroupServiceImpl implements GroupService {
         // set properties
         chatGroup.setGroupName(groupName);
         chatGroup.setCreatedBy(createdBy);
-        chatGroup.setExpiresIn(LocalDateTime.now().plusMinutes(validMinutes));
+        chatGroup.setExpiresAt(LocalDateTime.now().plusMinutes(validMinutes));
         chatGroup.getMembers().add(createdBy);
 
         // format date-time for logging
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMMM yyyy HH:mm a");
-        String formattedDate = chatGroup.getExpiresIn().format(formatter);
+        String formattedDate = chatGroup.getExpiresAt().format(formatter);
 
         // log group creation
         log.info("Group created: {} by {}, expires at: {}", groupName, createdBy, formattedDate);
@@ -73,7 +73,7 @@ public class GroupServiceImpl implements GroupService {
         groupOptional.ifPresent(group -> {
 
             // if user is not present & group not expired
-            if (!group.getMembers().contains(userName) && group.getExpiresIn().isAfter(LocalDateTime.now())) {
+            if (!group.getMembers().contains(userName) && group.getExpiresAt().isAfter(LocalDateTime.now())) {
 
                 // add user if they are not already a member
                 group.getMembers().add(userName);
@@ -153,9 +153,9 @@ public class GroupServiceImpl implements GroupService {
             newGroup.setGroupName(newGroupName);
             newGroup.setCreatedBy(oldGroup.getCreatedBy());
             newGroup.setMembers(new ArrayList<>(oldGroup.getMembers()));
-            newGroup.setExpiresIn(newExpiryInMins != null
+            newGroup.setExpiresAt(newExpiryInMins != null
                     ? LocalDateTime.now().plusMinutes(newExpiryInMins)
-                    : oldGroup.getExpiresIn());
+                    : oldGroup.getExpiresAt());
 
             // Save new group
             chatGroupRepository.save(newGroup);
@@ -178,7 +178,7 @@ public class GroupServiceImpl implements GroupService {
         } else if (newExpiryInMins != null) {
 
             // Only update expiry time
-            oldGroup.setExpiresIn(LocalDateTime.now().plusMinutes(newExpiryInMins));
+            oldGroup.setExpiresAt(LocalDateTime.now().plusMinutes(newExpiryInMins));
 
             // save changes
             chatGroupRepository.save(oldGroup);
