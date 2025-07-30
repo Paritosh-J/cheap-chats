@@ -97,7 +97,7 @@ public class GroupController {
     // GET GROUP
     @GetMapping("/group/{groupName}")
     public ChatGroup getGroup(@PathVariable String groupName) {
-        return groupService.joinChatGroup(groupName, "").orElseThrow(() -> new RuntimeException("Group not found"));
+        return groupService.getGroupByName(groupName);
     }
 
     // JOIN GROUP
