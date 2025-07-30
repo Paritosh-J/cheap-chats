@@ -50,6 +50,9 @@ export const getGroupMessages = async (groupName: string) =>
     return data;
   });
 
+export const getGroupExpiryIn = async (groupName: string) =>
+  axios.get(`${BASE_URL}/group/${groupName}/expiresIn`);
+
 export const deleteMessage = async (
   messageId: string,
   groupName: string,
