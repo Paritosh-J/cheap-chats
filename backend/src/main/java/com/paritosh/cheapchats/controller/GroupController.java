@@ -148,7 +148,7 @@ public class GroupController {
         // Filter out expired groups
 
         return allGroups.stream()
-                .filter(group -> group.getExpiresAt() != null && group.getExpiresAt().isAfter(now))
+                .filter(group -> group.getExpiresIn() != null && group.getExpiresIn().isAfter(now))
                 .toList();
     }
 

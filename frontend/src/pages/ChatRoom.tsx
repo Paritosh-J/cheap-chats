@@ -337,10 +337,13 @@ const ChatRoom: React.FC = () => {
       try {
         const response = await getGroupInfo(groupName!);
 
-        console.log("fetched expiry time:", response.data.expiryTime);
+        console.log("Full group info response:", response.data);
 
-        if (response.data.expiryTime) {
-          setExpiryTime(new Date(response.data.expiryTime));
+        if (response.data.expiresIn) {
+          setExpiryTime(new Date(response.data.expiresIn));
+          console.log("expiry time:", response.data.expiresIn);
+        } else {
+          console.warn("no expiry time in response!");
         }
       } catch (err) {
         console.error("Failed to fetch expiry time:", err);
@@ -349,7 +352,7 @@ const ChatRoom: React.FC = () => {
 
     fetchExpiryTime();
 
-    // update timere every second
+    // update timer every second
     const timer = setInterval(() => {
       if (expiryTime) {
         const now = new Date();

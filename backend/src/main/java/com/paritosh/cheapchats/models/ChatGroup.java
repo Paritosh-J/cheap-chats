@@ -21,7 +21,7 @@ public class ChatGroup {
     private String groupName;
     private String createdBy;
     private LocalDateTime createdAt;
-    private LocalDateTime expiresAt;
+    private LocalDateTime expiresIn;
 
     @ElementCollection
     @CollectionTable(
