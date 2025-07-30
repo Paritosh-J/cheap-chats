@@ -24,6 +24,6 @@ export interface ChatGroup {
   groupName: string;
   createdBy: string;
   createdAt: string;
-  expiresAt: string;
+  expiresIn: string;
   members: string[];
 }

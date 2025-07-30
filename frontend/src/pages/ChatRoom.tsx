@@ -20,6 +20,7 @@ import {
   removeMember,
   updateGroupSettings,
   checkGroupNameExists,
+  getGroupExpiryIn,
 } from "../services/api";
 import ChatMessageComponent from "../components/ChatMessage";
 
@@ -47,8 +48,7 @@ const ChatRoom: React.FC = () => {
   const [isNameTaken, setIsNameTaken] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
-  const [expiryTime, setExpiryTime] = useState<Date | null>(null);
-  const [timeLeft, setTimeLeft] = useState<string>("--:--");
+  const [minsLeft, setMinsLeft] = useState<number>(60);
   const [newExpiryTime, setNewExpiryTime] = useState(60);
 
   // fetch persisted messages
@@ -178,7 +178,7 @@ const ChatRoom: React.FC = () => {
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
-  // fetch group members
+  // FETCH GROUP MEMBERS
   useEffect(() => {
     const fetchMembers = async () => {
       try {
@@ -195,7 +195,7 @@ const ChatRoom: React.FC = () => {
     }
   }, [groupName]);
 
-  // Scroll to bottom logic and show/hide button
+  // SCROLL TO BOTTOM DISPLAY THRESHOLD
   const handleScroll = useCallback(() => {
     const el = messageListRef.current;
     if (!el) return;
@@ -205,6 +205,7 @@ const ChatRoom: React.FC = () => {
     setShowScrollToBottom(!atBottom);
   }, []);
 
+  // SCROLL EVENT LISTENER
   useEffect(() => {
     const el = messageListRef.current;
     if (!el) return;
@@ -214,7 +215,7 @@ const ChatRoom: React.FC = () => {
     return () => el.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
-  // Scroll to bottom function
+  // SCROLL TO BOTTOM
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -275,6 +276,7 @@ const ChatRoom: React.FC = () => {
     // Shift+Enter inserts newline (default behavior)
   };
 
+  // DELETE MESSAGE
   const handleDeleteMessage = async (messageId: number) => {
     try {
       console.log(
@@ -291,6 +293,7 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  // REPLY TO MESSAGE
   const handleReplyToMessage = (message: ChatMessage) => {
     setReplyTo(message);
     // Focus on input field
@@ -302,33 +305,38 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  // CANCEL REPLY TO MESSAGE
   const cancelReply = () => {
     setReplyTo(null);
   };
 
+  // SCROLL INTO VIEW
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const formatTimeLeft = (milliseconds: number): string => {
-    if (milliseconds < 0) return "00:00";
+  // return FORMATTED TIME LEFT
+  const formattedTimeLeft = (minutes: number): string => {
+    console.log("inside formatTimeLeft");
 
-    const minutes = Math.floor(milliseconds / 60000);
-    const seconds = Math.floor((milliseconds % 60000) / 1000);
+    const hrs = Math.floor(minutes / 60);
+    const mins = Math.floor(minutes % 60);
+    const secs = Math.floor((minutes * 60) % 60);
 
-    return `${minutes.toString().padStart(2, "0")}:${seconds
-      .toString()
-      .padStart(2, "0")}`;
+    if (hrs > 0) {
+      return `${hrs}h ${mins}m`;
+    } else {
+      return `${mins}m ${secs}s`;
+    }
   };
 
   // expiry timer
   useEffect(() => {
     const fetchExpiryTime = async () => {
       try {
-        const response = await getGroupInfo(groupName!);
-        if (response.data.expiryTime) {
-          setExpiryTime(new Date(response.data.expiryTime));
-        }
+        const response = await getGroupExpiryIn(groupName!);
+        console.log("expires in:", response.data.minsLeft);
+        setMinsLeft(response.data.minsLeft);
       } catch (err) {
         console.error("Failed to fetch expiry time:", err);
       }
@@ -336,24 +344,25 @@ const ChatRoom: React.FC = () => {
 
     fetchExpiryTime();
 
-    // update timere every second
+    // update timer every second
     const timer = setInterval(() => {
-      if (expiryTime) {
-        const now = new Date();
-        const diff = expiryTime.getTime() - now.getTime();
-        setTimeLeft(formatTimeLeft(diff));
+      setMinsLeft((prev) => {
+        const newMinutes = prev - 1 / 60;
 
-        // if expired
-        if (diff <= 0) {
+        if (newMinutes <= 0) {
           clearInterval(timer);
-          navigate("/group"); // redirect
+          // navigate("/group"); // Redirect when expired
+          return 0;
         }
-      }
+
+        return newMinutes;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [groupName, expiryTime, navigate]);
+  }, [groupName, navigate]);
 
+  // UPDATE GROUP
   const handleUpdateGroup = async () => {
     try {
       // update group settings
@@ -368,9 +377,9 @@ const ChatRoom: React.FC = () => {
       }
 
       // Refresh expiry time
-      const response = await getGroupInfo(groupName!);
-      if (response.data.expiryTime) {
-        setExpiryTime(new Date(response.data.expiryTime));
+      const response = await getGroupExpiryIn(groupName!);
+      if (response.data.minsLeft) {
+        setMinsLeft(response.data.minsLeft);
       }
 
       // setShowGroupSettings(false);
@@ -394,6 +403,7 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  // CHECK FOR EXISTING GROUP NAME
   const checkGroupName = useCallback(async (name: string) => {
     if (!name) {
       setIsNameTaken(false);
@@ -411,6 +421,7 @@ const ChatRoom: React.FC = () => {
     }
   }, []);
 
+  // DELETE GROUP
   const handleDeleteGroup = async () => {
     try {
       await deleteGroup(groupName!, username!);
@@ -420,6 +431,7 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  // REMOVE MEMBER
   const handleRemoveMember = async (targetMember: string) => {
     try {
       await removeMember(groupName!, targetMember);
@@ -461,7 +473,9 @@ const ChatRoom: React.FC = () => {
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-bold">#{resolvedGroupName}</h2>
           <div className="ml-3 flex items-center bg-gray-100 px-3 py-1 rounded-full border border-gray-300">
-            <span className="font-bold text-gray-600">⏳ {timeLeft}</span>
+            <span className="font-bold text-gray-600">
+              ⏳ {formattedTimeLeft(minsLeft)}
+            </span>
           </div>
         </div>
 

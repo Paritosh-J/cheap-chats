@@ -49,7 +49,8 @@ public class GroupServiceImpl implements GroupService {
         // set properties
         chatGroup.setGroupName(groupName);
         chatGroup.setCreatedBy(createdBy);
-        chatGroup.setExpiresAt(LocalDateTime.now().plusMinutes(validMinutes));
+        chatGroup.setCreatedAt(LocalDateTime.now());
+        chatGroup.setExpiresAt(chatGroup.getCreatedAt().plusMinutes(validMinutes));
         chatGroup.getMembers().add(createdBy);
 
         // format date-time for logging

@@ -1,5 +1,6 @@
 package com.paritosh.cheapchats.controller;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -97,7 +98,24 @@ public class GroupController {
     // GET GROUP
     @GetMapping("/group/{groupName}")
     public ChatGroup getGroup(@PathVariable String groupName) {
-        return groupService.joinChatGroup(groupName, "").orElseThrow(() -> new RuntimeException("Group not found"));
+        return groupService.getGroupByName(groupName);
+    }
+
+    // GET GROUP EXPIRY TIME
+    @GetMapping("/group/{groupName}/expiresIn")
+    public ResponseEntity<Map<String, Long>> getGroupExpiryIn(@PathVariable String groupName) {
+
+        log.info("inside controller getGroupExpiryIn");
+
+        ChatGroup group = groupService.getGroupByName(groupName);
+
+        LocalDateTime createdAt = group.getCreatedAt();
+        LocalDateTime expiryTime = group.getExpiresAt();
+
+        long minsLeft = Duration.between(createdAt, expiryTime).toMinutes();
+
+        return ResponseEntity.ok(Map.of("minsLeft", minsLeft));
+
     }
 
     // JOIN GROUP
