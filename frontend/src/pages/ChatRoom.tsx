@@ -178,7 +178,7 @@ const ChatRoom: React.FC = () => {
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
-  // fetch group members
+  // FETCH GROUP MEMBERS
   useEffect(() => {
     const fetchMembers = async () => {
       try {
@@ -195,7 +195,7 @@ const ChatRoom: React.FC = () => {
     }
   }, [groupName]);
 
-  // Scroll to bottom logic and show/hide button
+  // SCROLL TO BOTTOM DISPLAY THRESHOLD
   const handleScroll = useCallback(() => {
     const el = messageListRef.current;
     if (!el) return;
@@ -205,6 +205,7 @@ const ChatRoom: React.FC = () => {
     setShowScrollToBottom(!atBottom);
   }, []);
 
+  // SCROLL EVENT LISTENER
   useEffect(() => {
     const el = messageListRef.current;
     if (!el) return;
@@ -214,7 +215,7 @@ const ChatRoom: React.FC = () => {
     return () => el.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
-  // Scroll to bottom function
+  // SCROLL TO BOTTOM
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -275,6 +276,7 @@ const ChatRoom: React.FC = () => {
     // Shift+Enter inserts newline (default behavior)
   };
 
+  // DELETE MESSAGE
   const handleDeleteMessage = async (messageId: number) => {
     try {
       console.log(
@@ -291,6 +293,7 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  // REPLY TO MESSAGE
   const handleReplyToMessage = (message: ChatMessage) => {
     setReplyTo(message);
     // Focus on input field
@@ -302,19 +305,26 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  // CANCEL REPLY TO MESSAGE
   const cancelReply = () => {
     setReplyTo(null);
   };
 
+  // SCROLL INTO VIEW
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // return FORMATTED TIME LEFT
   const formatTimeLeft = (milliseconds: number): string => {
+    console.log("inside formatTimeLeft");
+
     if (milliseconds < 0) return "00:00";
 
     const minutes = Math.floor(milliseconds / 60000);
     const seconds = Math.floor((milliseconds % 60000) / 1000);
+
+    console.log("returning formattedTime");
 
     return `${minutes.toString().padStart(2, "0")}:${seconds
       .toString()
@@ -326,6 +336,9 @@ const ChatRoom: React.FC = () => {
     const fetchExpiryTime = async () => {
       try {
         const response = await getGroupInfo(groupName!);
+
+        console.log("fetched expiry time:", response.data.expiryTime);
+
         if (response.data.expiryTime) {
           setExpiryTime(new Date(response.data.expiryTime));
         }
@@ -341,10 +354,15 @@ const ChatRoom: React.FC = () => {
       if (expiryTime) {
         const now = new Date();
         const diff = expiryTime.getTime() - now.getTime();
-        setTimeLeft(formatTimeLeft(diff));
+        const formattedTime = formatTimeLeft(diff);
+
+        console.log("Timer update:", formattedTime);
+
+        setTimeLeft(formattedTime);
 
         // if expired
         if (diff <= 0) {
+          console.log("Timer expired!");
           clearInterval(timer);
           navigate("/group"); // redirect
         }
@@ -354,6 +372,7 @@ const ChatRoom: React.FC = () => {
     return () => clearInterval(timer);
   }, [groupName, expiryTime, navigate]);
 
+  // UPDATE GROUP
   const handleUpdateGroup = async () => {
     try {
       // update group settings
@@ -394,6 +413,7 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  // CHECK FOR EXISTING GROUP NAME
   const checkGroupName = useCallback(async (name: string) => {
     if (!name) {
       setIsNameTaken(false);
@@ -411,6 +431,7 @@ const ChatRoom: React.FC = () => {
     }
   }, []);
 
+  // DELETE GROUP
   const handleDeleteGroup = async () => {
     try {
       await deleteGroup(groupName!, username!);
@@ -420,6 +441,7 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  // REMOVE MEMBER
   const handleRemoveMember = async (targetMember: string) => {
     try {
       await removeMember(groupName!, targetMember);
