@@ -16,15 +16,14 @@ const GroupPage: React.FC = () => {
 
   const username = localStorage.getItem("username");
 
+  // CHECK USER IN LOCALSTORAGE
   useEffect(() => {
-    // if no username in localStorage
     if (!username) {
-      // redirect to login page
       navigate("/");
     }
   }, [username, navigate]);
 
-  // create group method
+  // CREATE GROUP
   const handleCreate = async () => {
     // if group name is empty
     if (!groupName.trim()) {
@@ -58,7 +57,7 @@ const GroupPage: React.FC = () => {
     }
   };
 
-  // join group method
+  // JOIN GROUP
   const handleJoin = async () => {
     // if group ID is empty
     if (!groupName.trim()) {
@@ -84,6 +83,7 @@ const GroupPage: React.FC = () => {
     }
   };
 
+  // FETCH MY GROUP LIST
   const fetchMyGroups = async () => {
     setLoadingGroups(true);
     try {
