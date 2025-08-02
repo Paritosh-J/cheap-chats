@@ -47,13 +47,23 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             backdropFilter: "blur(16px)",
             WebkitBackdropFilter: "blur(16px)",
             backgroundClip: "padding-box",
-            border:
-              message.type === "CHAT"
-                ? "1.5px solid black"
-                : undefined,
+            border: message.type === "CHAT" ? "1.5px solid black" : undefined,
             boxShadow: "0 4px 24px 0 rgba(31, 38, 135, 0.10)",
           }}
         >
+          {/* Reply Preview Banner */}
+          {message.replyTo && (
+            <div className="mb-2 p-1.5 -mt-1 -mx-2 bg-black/10 rounded text-xs border-l-2 border-gray-400">
+              <div className="font-semibold text-black/70">
+                {message.replyTo.sender}
+              </div>
+              <div className="text-black/60 truncate">
+                {message.replyTo.content.substring(0, 50)}
+                {message.replyTo.content.length > 50 ? "..." : ""}
+              </div>
+            </div>
+          )}
+
           {/* chat messages */}
           {message.type === "CHAT" ? (
             <>
@@ -92,7 +102,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           )}
         </div>
 
-        {/* Action Buttons - Always visible below message */}
+        {/* Action Buttons */}
         {message.type === "CHAT" && (
           <div className="flex gap-1 mt-1">
             {/* reply button */}

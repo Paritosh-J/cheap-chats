@@ -11,6 +11,7 @@ import {
   BsPersonFillGear,
   BsPersonFillSlash,
   BsTrash3Fill,
+  BsX,
 } from "react-icons/bs";
 import {
   getGroupInfo,
@@ -171,12 +172,16 @@ const ChatRoom: React.FC = () => {
 
   // Focus input when window regains focus
   useEffect(() => {
-    const handleFocus = () => {
-      inputRef.current?.focus();
-    };
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
+    inputRef.current?.focus();
   }, []);
+
+  // FOCUS ON MESSAGE INPUT
+  const focusInput = () => {
+    // Small delay to ensure DOM is ready
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+  };
 
   // FETCH GROUP MEMBERS
   useEffect(() => {
@@ -218,6 +223,7 @@ const ChatRoom: React.FC = () => {
   // SCROLL TO BOTTOM
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    focusInput();
   };
 
   // Auto-expand textarea
@@ -264,7 +270,10 @@ const ChatRoom: React.FC = () => {
     setInput("");
     setReplyTo(null);
     // Reset textarea height
-    if (inputRef.current) inputRef.current.style.height = "auto";
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      focusInput();
+    }
   }, [input, stompClient, username, groupName, replyTo]);
 
   // Handle keydown for textarea
@@ -297,17 +306,13 @@ const ChatRoom: React.FC = () => {
   const handleReplyToMessage = (message: ChatMessage) => {
     setReplyTo(message);
     // Focus on input field
-    const inputElement = document.querySelector(
-      'input[type="text"]'
-    ) as HTMLInputElement;
-    if (inputElement) {
-      inputElement.focus();
-    }
+    focusInput();
   };
 
   // CANCEL REPLY TO MESSAGE
   const cancelReply = () => {
     setReplyTo(null);
+    focusInput();
   };
 
   // SCROLL INTO VIEW
@@ -334,7 +339,7 @@ const ChatRoom: React.FC = () => {
   useEffect(() => {
     const fetchExpiryTime = async () => {
       try {
-        const response = await getGroupExpiryIn(groupName!);
+        const response = await getGroupExpiryIn(resolvedGroupName);
         console.log("expires in:", response.data.minsLeft);
         setMinsLeft(response.data.minsLeft);
       } catch (err) {
@@ -342,7 +347,7 @@ const ChatRoom: React.FC = () => {
       }
     };
 
-    fetchExpiryTime();
+    if (resolvedGroupName !== "Loading...") fetchExpiryTime();
 
     // update timer every second
     const timer = setInterval(() => {
@@ -374,10 +379,11 @@ const ChatRoom: React.FC = () => {
       // update local state
       if (newGroupName) {
         setResolvedGroupName(newGroupName);
+        navigate(`/group/${newGroupName}`);
       }
 
       // Refresh expiry time
-      const response = await getGroupExpiryIn(groupName!);
+      const response = await getGroupExpiryIn(newGroupName || groupName!);
       if (response.data.minsLeft) {
         setMinsLeft(response.data.minsLeft);
       }
@@ -589,7 +595,10 @@ const ChatRoom: React.FC = () => {
                 Update
               </button>
               <button
-                onClick={() => setShowGroupSettings(false)}
+                onClick={() => {
+                  setShowGroupSettings(false);
+                  focusInput();
+                }}
                 className="flex-1 px-3 py-1 bg-gray-200 rounded transition-all duration-200 hover:scale-110 hover:bg-gray-300 cursor-pointer border border-black"
               >
                 Cancel
@@ -599,7 +608,10 @@ const ChatRoom: React.FC = () => {
             {/* Back button */}
             <div className="flex justify-center mt-4">
               <button
-                onClick={() => setShowGroupSettings(false)}
+                onClick={() => {
+                  setShowGroupSettings(false);
+                  focusInput();
+                }}
                 className=" p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
                 title="Back"
               >
@@ -640,7 +652,10 @@ const ChatRoom: React.FC = () => {
             {/* Back button */}
             <div className="flex justify-center mt-4">
               <button
-                onClick={() => setShowMemberSettings(false)}
+                onClick={() => {
+                  setShowMemberSettings(false);
+                  focusInput();
+                }}
                 className=" p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
                 title="Back"
               >
@@ -667,7 +682,10 @@ const ChatRoom: React.FC = () => {
             <div className="flex justify-center gap-2">
               <button
                 className="flex-1 px-3 py-1 bg-gray-200 rounded transition-all duration-200 hover:scale-110 hover:bg-gray-300 cursor-pointer border border-black"
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  focusInput();
+                }}
               >
                 Cancel
               </button>
@@ -714,14 +732,16 @@ const ChatRoom: React.FC = () => {
             </div>
             <button
               onClick={cancelReply}
-              className="text-gray-500 hover:text-gray-700 text-sm"
+              className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
+              title="Close Groups"
             >
-              ✕
+              <BsX className="w-2 h-2" />
             </button>
           </div>
         </div>
       )}
 
+      {/* Message input field */}
       <div className="flex flex-col" style={{ position: "relative" }}>
         {/* Scroll to Bottom Button - bottom right above send button */}
         {showScrollToBottom && (
