@@ -47,10 +47,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             backdropFilter: "blur(16px)",
             WebkitBackdropFilter: "blur(16px)",
             backgroundClip: "padding-box",
-            border:
-              message.type === "CHAT"
-                ? "1.5px solid black"
-                : undefined,
+            border: message.type === "CHAT" ? "1.5px solid black" : undefined,
             boxShadow: "0 4px 24px 0 rgba(31, 38, 135, 0.10)",
           }}
         >
@@ -92,7 +89,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           )}
         </div>
 
-        {/* Action Buttons - Always visible below message */}
+        {/* Action Buttons */}
         {message.type === "CHAT" && (
           <div className="flex gap-1 mt-1">
             {/* reply button */}
