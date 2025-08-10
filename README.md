@@ -1,6 +1,6 @@
 # 💬 Cheap Chats
 
-A lightweight, mobile-first real-time group chat app powered by **React + Vite + TailwindCSS** and **Spring Boot + WebSocket**. Create temporary chat groups, invite friends via links, and enjoy anonymous banter — because cheap talks matter 😏.
+A lightweight, mobile-first real-time group chat app powered by **React + Vite + TailwindCSS** and **Spring Boot + WebSocket**. Create temporary chat groups and enjoy anonymous banter, NO REGISTRATION! — because cheap talks matter 😏.
 
 ---
 
@@ -30,6 +30,12 @@ A lightweight, mobile-first real-time group chat app powered by **React + Vite +
 
 ---
 
+## 🛠️ Project Architecture
+
+![Alt text](backend/src/main/resources/static/cheap-chats-architecture.png)
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -40,7 +46,7 @@ cheap-chats/
 
 ---
 
-## 🛠️ Local Setup
+## ⚙️ Local Setup
 
 ### ✅ Prerequisites
 - Node.js (v18+)
