@@ -103,18 +103,27 @@ public class GroupController {
 
     // GET GROUP EXPIRY TIME
     @GetMapping("/group/{groupName}/expiresIn")
-    public ResponseEntity<Map<String, Long>> getGroupExpiryIn(@PathVariable String groupName) {
+    public ResponseEntity<Map<String, Integer>> getGroupExpiryIn(@PathVariable String groupName) {
 
         log.info("inside controller getGroupExpiryIn");
 
-        ChatGroup group = groupService.getGroupByName(groupName);
+        try {
+            ChatGroup group = groupService.getGroupByName(groupName);
 
-        LocalDateTime createdAt = group.getCreatedAt();
-        LocalDateTime expiryTime = group.getExpiresAt();
+            LocalDateTime createdAt = group.getCreatedAt();
+            LocalDateTime expiryTime = group.getExpiresAt();
 
-        long minsLeft = Duration.between(createdAt, expiryTime).toMinutes();
+            Integer minsLeft = (int) Duration.between(createdAt, expiryTime).toMinutes();
 
-        return ResponseEntity.ok(Map.of("minsLeft", minsLeft));
+            log.info("fetched expiry mins: {}", minsLeft);
+
+            return ResponseEntity.ok(Map.of("minsLeft", minsLeft));
+
+        } catch (Exception e) {
+            log.error("Error getting group expiry time: {}", e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", -1));
+        }
 
     }
 
