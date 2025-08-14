@@ -322,7 +322,7 @@ const ChatRoom: React.FC = () => {
 
   // return FORMATTED TIME LEFT
   const formattedTimeLeft = (minutes: number): string => {
-    console.log("inside formatTimeLeft");
+    // console.log("inside formatTimeLeft");
 
     const hrs = Math.floor(minutes / 60);
     const mins = Math.floor(minutes % 60);
@@ -388,7 +388,7 @@ const ChatRoom: React.FC = () => {
         setMinsLeft(response.data.minsLeft);
       }
 
-      // setShowGroupSettings(false);
+      setShowGroupSettings(false);
       alert("Group settings updated!");
     } catch (error) {
       // group already exists
@@ -401,8 +401,6 @@ const ChatRoom: React.FC = () => {
         alert(
           "A group with this name already exists. Please choose a different name."
         );
-      } else {
-        alert("Failed to update group settings");
       }
 
       console.error("Failed to update group settings:", error);
