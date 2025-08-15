@@ -357,8 +357,7 @@ const ChatRoom: React.FC = () => {
     // update timer every second
     const timer = setInterval(() => {
       setMinsLeft((prev) => {
-        // const newMinutes = prev - 1 / 60;
-        const newMinutes = 0;
+        const newMinutes = prev - 1 / 60;
 
         if (newMinutes <= 0) {
           clearInterval(timer);
