@@ -461,6 +461,7 @@ const ChatRoom: React.FC = () => {
   }, [newGroupName, checkGroupName, resolvedGroupName]);
 
   return (
+    // <div className="flex flex-col h-screen px-2 pt-4 pb-3 chatroom-background relative">
     <div className="flex flex-col h-screen bg-gradient-to-b from-slate-50 to-green-200 px-2 pt-4 pb-3">
       <div className="flex items-center justify-between border border-black p-2 bg-white text-black rounded">
         {/* Back button */}
@@ -476,7 +477,7 @@ const ChatRoom: React.FC = () => {
 
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-bold">#{resolvedGroupName}</h2>
-          <div className="ml-3 flex items-center bg-gray-100 px-3 py-1 rounded-full border border-gray-300">
+          <div className="ml-3 flex items-center bg-gray-100 px-3 py-1 rounded-full border border-gray-300 timer-pulse">
             <span className="font-bold text-gray-600">
               ⏳ {formattedTimeLeft(minsLeft)}
             </span>
