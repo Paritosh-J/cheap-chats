@@ -226,4 +226,20 @@ public class GroupServiceImpl implements GroupService {
         log.info("Group deleted: {}", groupName);
     }
 
+    @Override
+    public void deleteExpiredGroups() {
+
+        log.info("checking for expired groups");
+
+        LocalDateTime now = LocalDateTime.now();
+        List<ChatGroup> expiredGroups = chatGroupRepository.findAll().stream()
+                .filter(group -> group.getExpiresAt().isBefore(now))
+                .toList();
+
+        for (ChatGroup group : expiredGroups) {
+            log.info("Deleting expired groups: {}", group.getGroupName());
+            deleteGroup(group.getGroupName());
+        }
+    }
+
 }

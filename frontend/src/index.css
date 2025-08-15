@@ -54,3 +54,42 @@ body {
 .timer-pulse {
   animation: timerPulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+@keyframes stampEffect {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-35deg) scale(5);
+  }
+  50% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) rotate(-35deg) scale(0.5);
+  }
+  /* 75% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) rotate(-80deg) scale(0.8);
+  } */
+  100% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) rotate(-35deg) scale(1);
+  }
+}
+
+.dead-stamp {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  font-size: 12vw;
+  font-weight: 900;
+  font-family: "Arial Black", sans-serif;
+  text-transform: uppercase;
+  color: rgba(255, 0, 0, 0.5);
+  border: 1rem solid rgba(255, 0, 0, 0.5);
+  padding: 0.5rem 3rem;
+  border-radius: 1rem;
+  text-shadow: 3px 3px 5px rgba(0, 0, 0, 0.2);
+  box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  user-select: none;
+  z-index: 40;
+  animation: stampEffect 0.5s ease-out forwards;
+}
