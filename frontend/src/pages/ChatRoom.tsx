@@ -382,14 +382,13 @@ const ChatRoom: React.FC = () => {
         navigate(`/group/${newGroupName}`);
       }
 
+      setShowGroupSettings(false);
+
       // Refresh expiry time
       const response = await getGroupExpiryIn(newGroupName || groupName!);
       if (response.data.minsLeft) {
         setMinsLeft(response.data.minsLeft);
       }
-
-      setShowGroupSettings(false);
-      alert("Group settings updated!");
     } catch (error) {
       // group already exists
       if (
