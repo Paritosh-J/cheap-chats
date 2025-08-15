@@ -51,6 +51,7 @@ const ChatRoom: React.FC = () => {
   const [newGroupName, setNewGroupName] = useState("");
   const [minsLeft, setMinsLeft] = useState<number>(60);
   const [newExpiryTime, setNewExpiryTime] = useState(60);
+  const [isGroupExpired, setIsGroupExpired] = useState(false);
 
   // fetch persisted messages
   useEffect(() => {
@@ -235,7 +236,7 @@ const ChatRoom: React.FC = () => {
     textarea.style.height = textarea.scrollHeight + "px";
   };
 
-  // Clean message: trim and remove leading/trailing whitespace and blank lines
+  // trim and remove leading/trailing whitespace and blank lines
   const cleanMessage = (msg: string) => {
     // Remove leading/trailing whitespace and blank lines
     return msg.replace(/^[\s\n]+|[\s\n]+$/g, "");
@@ -342,6 +343,10 @@ const ChatRoom: React.FC = () => {
         const response = await getGroupExpiryIn(resolvedGroupName);
         console.log("expires in:", response.data.minsLeft);
         setMinsLeft(response.data.minsLeft);
+
+        if (response.data.minsLeft <= 0) {
+          setIsGroupExpired(true);
+        }
       } catch (err) {
         console.error("Failed to fetch expiry time:", err);
       }
@@ -352,10 +357,30 @@ const ChatRoom: React.FC = () => {
     // update timer every second
     const timer = setInterval(() => {
       setMinsLeft((prev) => {
-        const newMinutes = prev - 1 / 60;
+        // const newMinutes = prev - 1 / 60;
+        const newMinutes = 0;
 
         if (newMinutes <= 0) {
           clearInterval(timer);
+          setIsGroupExpired(true);
+
+          // auto delete group
+          if (groupName) {
+            deleteGroup(groupName, username!)
+              .then(() => {
+                alert("Group expired!");
+                console.log("group auto-deleted due to expiration");
+              })
+              .catch((error) => {
+                console.error("Failed to auto-delete expired group", error);
+              });
+          }
+
+          // disconnect websocket
+          if (stompClient.current?.connected) {
+            stompClient.current.disconnect();
+          }
+
           // navigate("/group"); // Redirect when expired
           return 0;
         }
@@ -365,7 +390,7 @@ const ChatRoom: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [groupName, navigate]);
+  }, [stompClient]);
 
   // UPDATE GROUP
   const handleUpdateGroup = async () => {
@@ -462,6 +487,14 @@ const ChatRoom: React.FC = () => {
   return (
     // <div className="flex flex-col h-screen px-2 pt-4 pb-3 chatroom-background relative">
     <div className="flex flex-col h-screen bg-gradient-to-b from-slate-50 to-green-200 px-2 pt-4 pb-3">
+
+      {/* Group DEAD stamp */}
+      {isGroupExpired && (
+        <div className="dead-stamp" area-hidden="true">
+          DEAD
+        </div>
+      )}
+
       <div className="flex items-center justify-between border border-black p-2 bg-white text-black rounded">
         {/* Back button */}
         <button
@@ -475,7 +508,13 @@ const ChatRoom: React.FC = () => {
         </button>
 
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold">#{resolvedGroupName}</h2>
+          <h2
+            className={`text-xl font-bold ${
+              isGroupExpired ? "text-red-600" : ""
+            }`}
+          >
+            #{isGroupExpired ? "DEAD" : resolvedGroupName}
+          </h2>
           <div className="ml-3 flex items-center bg-gray-100 px-3 py-1 rounded-full border border-gray-300 timer-pulse">
             <span className="font-bold text-gray-600">
               ⏳ {formattedTimeLeft(minsLeft)}
@@ -761,19 +800,33 @@ const ChatRoom: React.FC = () => {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleInputKeyDown}
-            className="flex-1 p-2 rounded-l border border-black bg-white focus:outline-none resize-none max-h-40 min-h-[40px]"
+            // className="flex-1 p-2 rounded-l border border-black bg-white focus:outline-none resize-none max-h-40 min-h-[40px]"
+            className={`flex-1 p-2 rounded-l border border-black bg-white focus:outline-none resize-none max-h-40 min-h-[40px] ${
+              isGroupExpired ? "cursor-not-allowed" : ""
+            }`}
             placeholder={
-              replyTo
+              isGroupExpired
+                ? "Group has expired ... 💀😵🪦"
+                : replyTo
                 ? `Reply to ${replyTo.sender}...`
                 : "your cheap shots ... 😏"
             }
             rows={1}
             style={{ overflow: "hidden" }}
+            disabled={isGroupExpired}
           />
           <button
             onClick={sendMessage}
-            className="py-2 px-6 bg-green-600 text-white border-2 border-black rounded hover:bg-green-700 transition duration-150 cursor-pointer flex items-center justify-center"
-            disabled={!cleanMessage(input) || !stompClient.current?.connected}
+            className={`py-2 px-6 ${
+              isGroupExpired
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-green-600 hover:bg-green-700"
+            } text-white border-2 border-black rounded transition duration-150 flex items-center justify-center`}
+            disabled={
+              !cleanMessage(input) ||
+              !stompClient.current?.connected ||
+              isGroupExpired
+            }
             aria-label="Send Message"
           >
             <FiSend size={25} />

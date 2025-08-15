@@ -219,7 +219,10 @@ public class GroupController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Group not found"));
         }
 
-        if (!group.getCreatedBy().equals(username)) {
+        boolean isExpired = group.getExpiresAt().isBefore(LocalDateTime.now());
+        boolean isAdmin = username != null && group.getCreatedBy().equals(username);
+
+        if (!isExpired && !isAdmin) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Only admin can delete the group"));
         }
 

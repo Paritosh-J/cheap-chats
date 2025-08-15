@@ -21,4 +21,6 @@ public interface GroupService {
     ChatGroup getGroupByName(String groupName);
     
     void deleteGroup(String groupName);
+
+    void deleteExpiredGroups();
 }
