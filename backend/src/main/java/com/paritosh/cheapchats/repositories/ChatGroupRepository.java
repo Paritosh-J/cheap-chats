@@ -8,8 +8,9 @@ import com.paritosh.cheapchats.models.ChatGroup;
 
 public interface ChatGroupRepository extends JpaRepository<ChatGroup, String> {
 
+    // Find all groups with name: groupName
     boolean existsByGroupName(String groupName);
 
-    // Find all groups where a user is a member
-    List<ChatGroup> findByMembersContaining(String userName);
+    // Find all groups which are expired and have member: userName
+    List<ChatGroup> findByIsExpiredFalseAndMembersContaining(String username);
 }
