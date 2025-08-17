@@ -23,4 +23,6 @@ public interface GroupService {
     void deleteGroup(String groupName);
 
     void deleteExpiredGroups();
+
+    void updateExpiryTimes();
 }
