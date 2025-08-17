@@ -1,6 +1,5 @@
 package com.paritosh.cheapchats.models;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,8 +19,8 @@ public class ChatGroup {
     @Column(name = "group_name")
     private String groupName;
     private String createdBy;
-    private LocalDateTime createdAt;
-    private LocalDateTime expiresAt;
+    private String expiresIn;
+    private boolean isExpired;
 
     @ElementCollection
     @CollectionTable(
