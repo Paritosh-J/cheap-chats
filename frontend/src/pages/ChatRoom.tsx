@@ -592,7 +592,7 @@ const ChatRoom: React.FC = () => {
                 }`}
               />
               {isChecking && (
-                <p className="text-gray-500 text-sm mt-1">
+                <p className="text-gray-500 text-sm mt-1 text-center">
                   Checking availability...
                 </p>
               )}
