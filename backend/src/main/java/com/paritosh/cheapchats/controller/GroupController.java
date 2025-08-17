@@ -1,7 +1,5 @@
 package com.paritosh.cheapchats.controller;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -103,23 +101,23 @@ public class GroupController {
 
     // GET GROUP EXPIRY TIME
     @GetMapping("/group/{groupName}/expiresIn")
-    public ResponseEntity<Map<String, Integer>> getGroupExpiryIn(@PathVariable String groupName) {
+    public ResponseEntity<Map<String, Object>> getGroupExpiryIn(@PathVariable String groupName) {
 
         log.info("inside controller getGroupExpiryIn");
 
         try {
             ChatGroup group = groupService.getGroupByName(groupName);
-
-            LocalDateTime createdAt = group.getCreatedAt();
-            LocalDateTime expiryTime = group.getExpiresAt();
-
-            Integer minsLeft = (int) Duration.between(createdAt, expiryTime).toMinutes();
+            Integer minsLeft = Integer.valueOf(group.getExpiresIn());
+            boolean isExpired = group.isExpired();
 
             log.info("fetched expiry mins: {}", minsLeft);
 
-            return ResponseEntity.ok(Map.of("minsLeft", minsLeft));
+            return ResponseEntity.ok(Map.of(
+                    "minsLeft", minsLeft,
+                    "isExpired", isExpired
+            ));
 
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             log.error("Error getting group expiry time: {}", e.getMessage());
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", -1));
@@ -171,12 +169,8 @@ public class GroupController {
     public List<ChatGroup> getUserGroups(@RequestParam String username) {
 
         List<ChatGroup> allGroups = groupService.getGroupsForUser(username);
-        LocalDateTime now = LocalDateTime.now();
-        // Filter out expired groups
+        return allGroups;
 
-        return allGroups.stream()
-                .filter(group -> group.getExpiresAt() != null && group.getExpiresAt().isAfter(now))
-                .toList();
     }
 
     // UPDATE GROUP SETTINGS
@@ -187,7 +181,7 @@ public class GroupController {
 
         JSONObject groupSettingsJson = new JSONObject(jsonBody);
 
-        boolean success = groupService.updateGroupInfo(groupName, groupSettingsJson.getString("newGroupName"), groupSettingsJson.getInt("newExpiryMinutes"));
+        boolean success = groupService.updateGroupInfo(groupName.trim(), groupSettingsJson.getString("newGroupName"), groupSettingsJson.getInt("newExpiryMinutes"));
 
         return Map.of("updated", String.valueOf(success));
     }
@@ -219,10 +213,9 @@ public class GroupController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Group not found"));
         }
 
-        boolean isExpired = group.getExpiresAt().isBefore(LocalDateTime.now());
         boolean isAdmin = username != null && group.getCreatedBy().equals(username);
 
-        if (!isExpired && !isAdmin) {
+        if (!group.isExpired() && !isAdmin) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Only admin can delete the group"));
         }
 
