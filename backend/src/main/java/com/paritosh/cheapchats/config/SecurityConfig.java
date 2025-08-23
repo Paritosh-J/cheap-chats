@@ -32,6 +32,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.addAllowedOrigin("http://localhost:5173"); // Frontend URL
         configuration.addAllowedOrigin("http://localhost:3000"); // Alternative frontend URL
+        configuration.addAllowedOrigin("https://cheap-chats.vercel.app"); // Alternative frontend URL
         configuration.addAllowedMethod("*"); // Allow all HTTP methods
         configuration.addAllowedHeader("*"); // Allow all headers
         configuration.setAllowCredentials(true); // Allow credentials
