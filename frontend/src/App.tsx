@@ -7,7 +7,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LoginPage />} />`
+        <Route path="/" element={<LoginPage />} />
         <Route path="/group/:id" element={<ChatRoom />} />
         <Route path="/group" element={<GroupPage />} />
       </Routes>
