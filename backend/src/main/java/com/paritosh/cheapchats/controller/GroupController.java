@@ -30,7 +30,8 @@ import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true") // Allow all origins for CORS
+// @CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true") // Allow all origins for CORS
+@CrossOrigin(origins = "https://cheap-chats.vercel.app", allowCredentials = "true") // Allow all origins for CORS
 // This allows the frontend to communicate with the backend without CORS issues
 @Slf4j
 public class GroupController {
