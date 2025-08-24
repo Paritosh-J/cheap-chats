@@ -89,7 +89,8 @@ const ChatRoom: React.FC = () => {
     fetchMessages();
 
     // initialize SockJS and Stomp client
-    const socket = new SockJS("http://localhost:8080/ws");
+    // const socket = new SockJS("http://localhost:8080/ws");
+    const socket = new SockJS(`${import.meta.env.VITE_BACKEND_URL}/ws`);
     stompClient.current = Stomp.over(socket);
 
     stompClient.current.connect(
