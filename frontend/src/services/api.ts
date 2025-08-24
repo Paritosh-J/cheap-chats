@@ -1,5 +1,15 @@
 import axios from "axios";
-const BASE_URL = "http://localhost:8080/api";
+const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080/api";
+
+// const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080/api";
+
+export async function fetchData(endpoint: string) {
+  const response = await fetch(`${BASE_URL}${endpoint}`, {
+    credentials: "include",
+  });
+  return response.json();
+}
+
 
 export const loginUser = async (username: string) =>
   axios.post(`${BASE_URL}/login`, null, { params: { username } });
