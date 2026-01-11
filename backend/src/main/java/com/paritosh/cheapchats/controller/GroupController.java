@@ -79,7 +79,7 @@ public class GroupController {
             @RequestParam String groupName,
             @RequestParam String createdBy,
             @RequestParam(defaultValue = "60") int expiryInMinutes
-    ) {
+    ) throws Exception {
         return groupService.createChatGroup(groupName, createdBy, expiryInMinutes);
     }
 
@@ -176,7 +176,7 @@ public class GroupController {
 
     // UPDATE GROUP SETTINGS
     @PutMapping("/group/{groupName}/settings")
-    public Map<String, String> updateGroupInfo(@PathVariable String groupName, @RequestBody String jsonBody) {
+    public Map<String, String> updateGroupInfo(@PathVariable String groupName, @RequestBody String jsonBody) throws Exception {
 
         log.info("inside controller updateGroupInfo");
 
