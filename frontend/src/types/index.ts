@@ -25,6 +25,7 @@ export interface ChatGroup {
   expiresIn: string;
   expired: boolean;
   members: string[];
+  kickedMembers?: Record<string, string>;
 }
 
 export interface ChatMessage {
@@ -32,7 +33,20 @@ export interface ChatMessage {
   sender: string;
   content: string;
   timestamp: string;
-  type: "CHAT" | "JOIN" | "LEAVE" | "DELETE";
+  type:
+    | "CHAT"
+    | "JOIN"
+    | "LEAVE"
+    | "DELETE"
+    | "KICKED_OUT"
+    | "GROUP_UPDATED"
+    | "GROUP_EXPIRED"
+    | "GROUP_DELETED"
+    | "MESSAGE_REJECTED";
+  groupName?: string;
+  expiresAtEpochMillis?: number;
+  clientMessageId?: string;
+  pending?: boolean;
   replyTo?: {
     sender: string;
     content: string;
@@ -52,4 +66,5 @@ export interface ChatMessageProps {
   onDelete?: (messageId: number) => void;
   onReply?: (message: ChatMessage) => void;
   username?: string;
+  isReadOnly?: boolean;
 }

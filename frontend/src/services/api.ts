@@ -1,7 +1,8 @@
 import axios from "axios";
-const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080/api";
 
-// const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080/api";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
+
+const BASE_URL = `${BACKEND_URL}/api`;
 
 export async function fetchData(endpoint: string) {
   const response = await fetch(`${BASE_URL}${endpoint}`, {
@@ -10,14 +11,13 @@ export async function fetchData(endpoint: string) {
   return response.json();
 }
 
-
 export const loginUser = async (username: string) =>
   axios.post(`${BASE_URL}/login`, null, { params: { username } });
 
 export const createGroup = async (
   groupName: string,
   createdBy: string,
-  expiresInMinutes: number
+  expiresInMinutes: number,
 ) =>
   axios.post(`${BASE_URL}/group`, null, {
     params: { groupName, createdBy, expiryInMinutes: expiresInMinutes },
@@ -41,8 +41,8 @@ export const removeMember = async (groupName: string, targetMember: string) =>
 export const getGroupInfo = async (groupName: string) =>
   axios.get(`${BASE_URL}/group/${groupName}`);
 
-export const getGroupMessages = async (groupName: string) =>
-  axios.get(`${BASE_URL}/messages/${groupName}`).then((response) => {
+export const getGroupMessages = async (groupName: string, username: string) =>
+  axios.get(`${BASE_URL}/messages/${groupName}`, { params: { username } }).then((response) => {
     let data = response.data;
     if (
       !Array.isArray(data) &&
@@ -52,7 +52,7 @@ export const getGroupMessages = async (groupName: string) =>
     ) {
       try {
         data = JSON.parse(data.Content);
-      } catch (e) {
+      } catch {
         data = [];
       }
     }
@@ -66,7 +66,7 @@ export const getGroupExpiryIn = async (groupName: string) =>
 export const deleteMessage = async (
   messageId: string,
   groupName: string,
-  username: string
+  username: string,
 ) =>
   axios.delete(`${BASE_URL}/messages/${messageId}`, {
     params: { groupName, username },
@@ -83,7 +83,10 @@ export const checkGroupNameExists = async (groupName: string) =>
 
 export const updateGroupSettings = async (
   groupName: string,
-  settings: { newGroupName?: string; newExpiryMinutes?: number }
+  settings: { newGroupName?: string; newExpiryMinutes?: number },
+  username: string,
 ) => {
-  return axios.put(`${BASE_URL}/group/${groupName}/settings`, settings);
+  return axios.put(`${BASE_URL}/group/${groupName}/settings`, settings, {
+    params: { username },
+  });
 };

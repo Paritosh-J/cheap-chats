@@ -13,8 +13,16 @@ import type { Group } from "../types";
 interface ChatContextType {
   username: string;
   groups: Group[];
-  toast: { msg: string; type: "success" | "error" } | null;
-  showToast: (msg: string, type: "success" | "error") => void;
+  toast: {
+    msg: string;
+    type: "success" | "error";
+    emphasizedUser?: string;
+  } | null;
+  showToast: (
+    msg: string,
+    type: "success" | "error",
+    emphasizedUser?: string,
+  ) => void;
   setUsername: (username: string) => void;
   handleCreateGroup: (name: string, duration: number) => void;
   handleAddMember: (groupId: string, member: string) => void;
@@ -31,12 +39,17 @@ export const ChatProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [toast, setToast] = useState<{
     msg: string;
     type: "success" | "error";
+    emphasizedUser?: string;
   } | null>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = useCallback((msg: string, type: "success" | "error") => {
+  const showToast = useCallback((
+    msg: string,
+    type: "success" | "error",
+    emphasizedUser?: string,
+  ) => {
       if (toastTimeout.current) clearTimeout(toastTimeout.current);
-      setToast({ msg, type });
+      setToast({ msg, type, emphasizedUser });
       toastTimeout.current = setTimeout(() => {
         setToast(null);
         toastTimeout.current = null;
@@ -72,7 +85,7 @@ export const ChatProvider: FC<{ children: ReactNode }> = ({ children }) => {
           : group,
       ),
     );
-    showToast(`${member} added ✅`, "success");
+    showToast(`${member} added ✅`, "success", member);
   };
 
   const handleRemoveMember = (groupId: string, member: string) => {
@@ -83,7 +96,7 @@ export const ChatProvider: FC<{ children: ReactNode }> = ({ children }) => {
           : group,
       ),
     );
-    showToast(`${member} kicked out🩴`, "success");
+    showToast(`${member} kicked out🩴`, "error", member);
   };
 
   const handleLeaveGroup = (groupId: string) => {

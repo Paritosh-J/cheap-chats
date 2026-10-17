@@ -7,17 +7,20 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Objects;
+import java.util.HashMap;
 
 import com.paritosh.cheapchats.utils.ChatGroupUtility;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-
 import com.paritosh.cheapchats.models.ChatGroup;
 import com.paritosh.cheapchats.models.ChatMessage;
+import com.paritosh.cheapchats.dto.ChatMessageDto;
 import com.paritosh.cheapchats.repositories.ChatGroupRepository;
 import com.paritosh.cheapchats.repositories.ChatMessageRepository;
 import com.paritosh.cheapchats.services.GroupService;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,8 +35,13 @@ public class GroupServiceImpl implements GroupService {
     @Autowired
     private ChatMessageRepository chatMessageRepository;
 
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
     @Override
     public ChatGroup createChatGroup(String groupName, String createdBy, int validMinutes) {
+        deleteExpiredGroups();
+
         // validate group name
         ChatGroupUtility.validateGroupCreation(groupName, validMinutes, createdBy, chatGroupRepository);
 
@@ -62,25 +70,24 @@ public class GroupServiceImpl implements GroupService {
     public Optional<ChatGroup> joinChatGroup(String groupName, String userName) {
 
         Optional<ChatGroup> groupOptional = chatGroupRepository.findById(groupName);
+        if (groupOptional.isEmpty()) {
+            return Optional.empty();
+        }
 
-        // if the group exists and is not expired
-        groupOptional.ifPresent(group -> {
+        ChatGroup group = groupOptional.get();
+        if (group.isExpired() || !getExpiryDate(group).isAfter(LocalDateTime.now())) {
+            return Optional.empty();
+        }
 
-            // if user is not present & group not expired
-            if (!group.getMembers().contains(userName) && !group.isExpired()) {
-
-                // add user if they are not already a member
-                group.getMembers().add(userName);
-
-                // log user joining
-                log.info("JOIN: User {} joined group: {}", userName, groupName);
-
-                // save changes
-                chatGroupRepository.save(group);
-
-            }
-        });
-
+        boolean wasMember = group.getMembers().contains(userName);
+        boolean wasKicked = group.getKickedMembers().remove(userName) != null;
+        if (!wasMember) {
+            group.getMembers().add(userName);
+        }
+        if (wasKicked || !wasMember) {
+            log.info("JOIN: User {} joined group: {}", userName, groupName);
+            chatGroupRepository.save(group);
+        }
         return groupOptional;
 
     }
@@ -147,6 +154,7 @@ public class GroupServiceImpl implements GroupService {
             newGroup.setExpired(oldGroup.isExpired());
             LocalDateTime createdAt = getCreationDate(oldGroup);
             newGroup.setCreatedAt(createdAt);
+            newGroup.setKickedMembers(new HashMap<>(oldGroup.getKickedMembers()));
             newGroup.setExpiresIn(newExpiryInMins != null ? String.valueOf(newExpiryInMins) : oldGroup.getExpiresIn());
             newGroup.setExpiresAt(newExpiryInMins != null
                     ? createdAt.plusMinutes(newExpiryInMins)
@@ -186,22 +194,30 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public void removeMember(String groupName, String targetMember) {
+    public LocalDateTime removeMember(String groupName, String targetMember) {
 
         log.info("inside removeMember");
 
-        // get group and remove user
-        chatGroupRepository.findById(groupName).ifPresent(group -> {
+        return chatGroupRepository.findById(groupName).map(group -> {
             if (group.getMembers().remove(targetMember)) {
+                LocalDateTime removedAt = LocalDateTime.now();
+                group.getKickedMembers().put(targetMember, removedAt);
                 chatGroupRepository.save(group);
                 log.info("REMOVED: {} removed from {}", targetMember, groupName);
+                return removedAt;
             }
-        });
+            return null;
+        }).orElse(null);
     }
 
     @Override
     public List<ChatGroup> getGroupsForUser(String userName) {
-        return chatGroupRepository.findByIsExpiredFalseAndMembersContaining(userName);
+        deleteExpiredGroups();
+        return chatGroupRepository.findAll().stream()
+                .filter(group -> !group.isExpired())
+                .filter(group -> group.getMembers().contains(userName)
+                        || group.getKickedMembers().containsKey(userName))
+                .toList();
     }
 
     @Override
@@ -304,22 +320,29 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public void deleteGroup(String groupName) {
+        chatMessageRepository.deleteByGroupName(groupName);
         chatGroupRepository.deleteById(groupName);
         log.info("Group deleted: {}", groupName);
     }
 
     @Override
+    @Scheduled(fixedDelay = 10000)
     public void deleteExpiredGroups() {
 
-        log.info("checking for expired groups");
-
+        LocalDateTime now = LocalDateTime.now();
         List<ChatGroup> expiredGroups = chatGroupRepository.findAll().stream()
-                .filter(ChatGroup::isExpired)
+                .filter(group -> group.isExpired() || !getExpiryDate(group).isAfter(now))
                 .toList();
 
         for (ChatGroup group : expiredGroups) {
             log.info("Deleting expired groups: {}", group.getGroupName());
             deleteGroup(group.getGroupName());
+            ChatMessageDto event = new ChatMessageDto();
+            event.setType("GROUP_EXPIRED");
+            event.setGroupName(group.getGroupName());
+            event.setContent("This group has expired");
+            event.setTimestamp(now.toString());
+            messagingTemplate.convertAndSend("/topic/group/" + group.getGroupName(), event);
         }
     }
 
