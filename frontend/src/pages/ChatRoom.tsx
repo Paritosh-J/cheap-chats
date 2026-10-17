@@ -722,7 +722,10 @@ const ChatRoom: React.FC = () => {
 
   return (
     // <div className="flex flex-col h-screen px-2 pt-4 pb-3 chatroom-background relative">
-    <div className="flex flex-col h-screen bg-white px-2 pt-4 pb-3">
+    <div
+      className="flex h-screen min-h-0 flex-col overflow-hidden bg-white px-2 pt-3 pb-2"
+      style={{ height: "100dvh", maxHeight: "100dvh" }}
+    >
       {/* Group DEAD stamp */}
       {isGroupExpired ? (
         <div className="dead-stamp" area-hidden="true">
@@ -734,40 +737,60 @@ const ChatRoom: React.FC = () => {
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between border border-black p-2 bg-white text-black rounded">
-        {/* Back button */}
-        <button
-          id="back-button"
-          onClick={() => {
-            navigate("/group");
-          }}
-          className=" p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
-          title="Back"
-        >
-          <BsArrowLeft className="w-5 h-5" />
-        </button>
-
-        <div className="flex items-center gap-4">
+      <div
+        className={`grid shrink-0 items-center gap-1 rounded border border-black bg-white p-1.5 text-black ${
+          isAdmin
+            ? "grid-cols-[minmax(0,1fr)_auto]"
+            : "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-1 sm:gap-4">
+          <button
+            id="back-button"
+            onClick={() => {
+              navigate("/group");
+            }}
+            className="shrink-0 rounded-full border border-blue bg-blue-100 p-1.5 text-blue-600 transition-all duration-200 hover:scale-110 hover:cursor-pointer hover:bg-blue-200 sm:p-2"
+            title="Back"
+          >
+            <BsArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+          </button>
           <h2
-            className={`text-xl font-bold ${
+            className={`min-w-0 flex-1 truncate text-base font-bold sm:text-xl ${
               isGroupExpired ? "text-red-600" : ""
             }`}
           >
             #{isGroupExpired ? "DEAD" : resolvedGroupName}
           </h2>
-          <div className="ml-3 flex items-center bg-gray-100 px-3 py-1 rounded-full border border-gray-300 timer-pulse">
-            <span className="font-bold text-gray-600">
-              ⏳
-              {minsLeft !== null
-                ? ` ${formattedTimeLeft(minsLeft)}`
-                : expiryLoadFailed
-                  ? " Timer unavailable - restart backend"
-                  : " Loading..."}
-            </span>
-          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {!isAdmin && (
+          <div id="timer" className="flex items-center rounded-full border border-gray-300 bg-gray-100 px-1.5 py-1 timer-pulse sm:px-3">
+          <span className="whitespace-nowrap text-xs font-bold text-gray-600 sm:text-sm">
+            ⏳
+            {minsLeft !== null
+              ? ` ${formattedTimeLeft(minsLeft)}`
+              : expiryLoadFailed
+                ? " Timer unavailable - restart backend"
+                : " Loading..."}
+          </span>
+          </div>
+        )}
+
+        <div className="flex min-w-0 items-center justify-self-end gap-1">
+          {isAdmin && (
+            <div id="timer" className="flex items-center rounded-full border border-gray-300 bg-gray-100 px-1.5 py-1 timer-pulse sm:px-3">
+              <span className="whitespace-nowrap text-xs font-bold text-gray-600 sm:text-sm">
+                ⏳
+                {minsLeft !== null
+                  ? ` ${formattedTimeLeft(minsLeft)}`
+                  : expiryLoadFailed
+                    ? " Timer unavailable - restart backend"
+                    : " Loading..."}
+              </span>
+            </div>
+          )}
+
           {/* Group settings button */}
           <button
             id="group-settings-button"
@@ -775,10 +798,10 @@ const ChatRoom: React.FC = () => {
             onClick={() => {
               setShowGroupSettings(true);
             }}
-            className=" p-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-yellow"
+            className="shrink-0 rounded-full border border-yellow bg-yellow-100 p-1.5 text-yellow-600 transition-all duration-200 hover:scale-110 hover:cursor-pointer hover:bg-yellow-200 sm:p-2"
             title="Group settings"
           >
-            <BsGearFill className="w-5 h-5" />
+            <BsGearFill className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
 
           {/* Group members settings button */}
@@ -786,10 +809,10 @@ const ChatRoom: React.FC = () => {
             id="group-members-button"
             disabled={isReadOnly}
             onClick={() => setShowMemberSettings(true)}
-            className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
+            className="shrink-0 rounded-full border border-blue bg-blue-100 p-1.5 text-blue-600 transition-all duration-200 hover:scale-110 hover:cursor-pointer hover:bg-blue-200 sm:p-2"
             title="Members settings"
           >
-            <BsPersonFillGear className="w-5 h-5" />
+            <BsPersonFillGear className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
 
           {isAdmin && (
@@ -798,10 +821,10 @@ const ChatRoom: React.FC = () => {
               id="delete-group-button"
               disabled={isReadOnly}
               onClick={() => setShowDeleteConfirm(true)}
-              className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
+              className="shrink-0 rounded-full border border-red bg-red-100 p-1.5 text-red-600 transition-all duration-200 hover:scale-110 hover:cursor-pointer hover:bg-red-200 sm:p-2"
               title="Delete message"
             >
-              <BsTrash3Fill className="w-5 h-5" />
+              <BsTrash3Fill className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           )}
 
@@ -813,10 +836,10 @@ const ChatRoom: React.FC = () => {
               localStorage.removeItem("username");
               navigate("/");
             }}
-            className=" p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
+            className="shrink-0 rounded-full border border-red bg-red-100 p-1.5 text-red-600 transition-all duration-200 hover:scale-110 hover:cursor-pointer hover:bg-red-200 sm:p-2"
             title="Logout"
           >
-            <BsBoxArrowRight className="w-5 h-5" />
+            <BsBoxArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
       </div>
@@ -824,7 +847,7 @@ const ChatRoom: React.FC = () => {
       {/* Group settings popup */}
       {showGroupSettings && !isReadOnly && (
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs z-50">
-          <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-full">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-xs overflow-y-auto rounded-2xl bg-white p-6 shadow-lg">
             <h3 className="text-lg font-bold mb-2 text-green-600 text-center">
               Group Settings{" "}
               <span className="drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
@@ -928,33 +951,32 @@ const ChatRoom: React.FC = () => {
       {/* Group Members setting popup */}
       {showMemberSettings && !isReadOnly && (
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs bg-opacity-40 z-50 ">
-          <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-full">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-xs overflow-y-auto rounded-2xl bg-white p-6 shadow-lg">
             <h3 className="text-lg font-bold mb-2 text-green-600 text-center">
               Members 😎
             </h3>
-            <ul className="list-disc">
+            <ol className="list-disc space-y-1 pl-5">
               {membersList.map((member) => (
-                <li
-                  key={member}
-                  className="relative flex justify-center items-center py-1"
-                >
-                  <span className="text-lg">{member}</span>
-                  {member !== username && (
-                    <button
-                      id="remove-member-button"
-                      className="ml-2 px-1 py-1 bg-red-100 rounded-full transition-all duration-200 hover:bg-red-200 hover:scale-110 text-red-600 rounded text-sm cursor-pointer border border-red"
-                      onClick={() => setMemberPendingRemoval(member)}
-                      title="Remove member"
-                    >
-                      <BsPersonFillSlash className="" />
-                    </button>
-                  )}
+                <li key={member}>
+                  <div className="grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-2">
+                    <span className="truncate text-left text-lg">{member}</span>
+                    {member !== username && (
+                      <button
+                        id="remove-member-button"
+                        className="justify-self-center rounded-full border border-red bg-red-100 p-1 text-sm text-red-600 transition-all duration-200 hover:scale-110 hover:bg-red-200 cursor-pointer"
+                        onClick={() => setMemberPendingRemoval(member)}
+                        title="Remove member"
+                      >
+                        <BsPersonFillSlash className="" />
+                      </button>
+                    )}
+                  </div>
                   {memberPendingRemoval === member && (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
                       <div
                         role="alertdialog"
                         aria-label={`Remove ${member} from group`}
-                        className="w-[35%] rounded-xl border border-gray-300 bg-white p-5 text-center text-sm text-gray-800 shadow-xl"
+                        className="w-[85%] rounded-xl border border-gray-300 bg-white p-5 text-center text-sm text-gray-800 shadow-xl"
                       >
                         <p className="mb-4">
                           Remove{" "}
@@ -984,7 +1006,7 @@ const ChatRoom: React.FC = () => {
                   )}
                 </li>
               ))}
-            </ul>
+            </ol>
 
             {/* Back button */}
             <div className="flex justify-center mt-4">
@@ -1041,7 +1063,7 @@ const ChatRoom: React.FC = () => {
       )}
 
       <div
-        className="flex-1 overflow-y-auto my-3 space-y-2 messages-container"
+        className="my-2 min-h-0 flex-1 space-y-2 overflow-y-auto messages-container"
         ref={messageListRef}
         style={{
           scrollbarWidth: "thin",
@@ -1086,18 +1108,23 @@ const ChatRoom: React.FC = () => {
 
       {/* Message input field */}
       <div className="flex flex-col" style={{ position: "relative" }}>
-        <p className="mb-1 text-center text-[11px] font-light text-gray-600">
-          This group will{" "}
-          <span style={{ fontWeight: "bold" }}>vanish from "My Groups"</span>{" "}
-          once timer expires!
-        </p>
+        {!showScrollToBottom && (
+          <p
+            id="group-deletion-warning"
+            className="text-center text-[11px] font-light text-gray-600"
+          >
+            This group will{" "}
+            <span style={{ fontWeight: "bold" }}>vanish from "My Groups"</span>{" "}
+            once timer expires!
+          </p>
+        )}
         {/* Scroll to Bottom Button - bottom right above send button */}
         {showScrollToBottom && (
           <button
             id="scroll-to-bottom-button"
             onClick={scrollToBottom}
             disabled={isReadOnly}
-            className="fixed md:absolute right-15 md:right-4 bottom-17 p-2 bg-black text-white rounded-full shadow-lg border-2 border-white  hover:bg-white hover:text-black hover:border-1 hover:border-black transition z-20 hover:scale-110 cursor-pointer"
+            className="fixed md:absolute right-[44%] md:right-4 bottom-17 p-2 bg-black text-white rounded-full shadow-lg border-2 border-white  hover:bg-white hover:text-black hover:border-1 hover:border-black transition z-20 hover:scale-110 cursor-pointer"
             style={{
               boxShadow: "0 2px 8px rgba(14, 8, 8, 0.15)",
               transition: "opacity 0.3s, transform 0.3s",
