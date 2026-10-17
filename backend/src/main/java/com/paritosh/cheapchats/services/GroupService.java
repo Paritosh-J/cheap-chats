@@ -1,6 +1,7 @@
 package com.paritosh.cheapchats.services;
 
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 import com.paritosh.cheapchats.models.ChatGroup;
 
@@ -14,7 +15,7 @@ public interface GroupService {
 
     boolean updateGroupInfo(String groupName, String newName, Integer newExpiryInMins) throws Exception;
 
-    void removeMember(String groupName, String targetMember);
+    LocalDateTime removeMember(String groupName, String targetMember);
 
     java.util.List<ChatGroup> getGroupsForUser(String username);
     

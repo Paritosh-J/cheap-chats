@@ -24,4 +24,4 @@ RUN ./mvnw -q -DskipTests package && cp target/*.jar app.jar
 EXPOSE 8080
 
 # Run the app, letting Render inject $PORT
-CMD ["java", "-jar", "app.jar", "--server.port=${PORT}"]
+CMD ["java", "-jar", "app.jar"]

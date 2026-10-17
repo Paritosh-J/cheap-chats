@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,9 +32,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true") // Allow all origins for CORS
-//@CrossOrigin(origins = "https://cheap-chats.vercel.app", allowCredentials = "true") // Allow all origins for CORS
-// This allows the frontend to communicate with the backend without CORS issues
 @Slf4j
 public class GroupController {
 
@@ -140,8 +136,17 @@ public class GroupController {
         if (groupName == null) {
             return ResponseEntity.badRequest().build();
         }
+        ChatGroup existingGroup = groupService.getGroupByName(groupName);
+        boolean wasMember = existingGroup != null && existingGroup.getMembers().contains(username);
         return groupService.joinChatGroup(groupName, username)
-                .map(ResponseEntity::ok)
+                .map(group -> {
+                    if (!wasMember) {
+                        messagingTemplate.convertAndSend(
+                                "/topic/group/" + groupName,
+                                createGroupEvent("JOIN", username, username + " joined the group", groupName));
+                    }
+                    return ResponseEntity.ok(group);
+                })
                 .orElseGet(() -> ResponseEntity.notFound().build());
 
     }
@@ -154,6 +159,11 @@ public class GroupController {
     ) {
 
         boolean success = groupService.leaveChatGroup(groupName, username);
+        if (success) {
+            messagingTemplate.convertAndSend(
+                    "/topic/group/" + groupName,
+                    createGroupEvent("LEAVE", username, username + " left the group", groupName));
+        }
 
         return Map.of("left", String.valueOf(success));
 
@@ -180,7 +190,10 @@ public class GroupController {
 
     // UPDATE GROUP SETTINGS
     @PutMapping("/group/{groupName}/settings")
-    public Map<String, Object> updateGroupInfo(@PathVariable String groupName, @RequestBody String jsonBody) throws Exception {
+    public Map<String, Object> updateGroupInfo(
+            @PathVariable String groupName,
+            @RequestBody String jsonBody,
+            @RequestParam(required = false) String username) throws Exception {
 
         log.info("inside controller updateGroupInfo");
 
@@ -194,7 +207,26 @@ public class GroupController {
         boolean success = groupService.updateGroupInfo(
                 groupName.trim(), newGroupName, newExpiryMinutes);
 
-        return Map.of("updated", success);
+        if (!success) {
+            return Map.of("updated", false);
+        }
+
+        String updatedGroupName = newGroupName == null || newGroupName.isBlank()
+                ? groupName.trim()
+                : newGroupName.trim();
+        long expiresAt = groupService.getExpiryAtEpochMillis(updatedGroupName);
+        ChatMessageDto updateEvent = createGroupEvent(
+                "GROUP_UPDATED",
+                username == null ? "" : username,
+                "Group settings were updated",
+                updatedGroupName);
+        updateEvent.setExpiresAtEpochMillis(expiresAt);
+        messagingTemplate.convertAndSend("/topic/group/" + groupName.trim(), updateEvent);
+        if (!updatedGroupName.equals(groupName.trim())) {
+            messagingTemplate.convertAndSend("/topic/group/" + updatedGroupName, updateEvent);
+        }
+
+        return Map.of("updated", true, "groupName", updatedGroupName, "expiresAtEpochMillis", expiresAt);
     }
 
     // REMOVE MEMBER
@@ -204,16 +236,12 @@ public class GroupController {
             @RequestParam String targetMember
     ) {
 
-        ChatGroup group = groupService.getGroupByName(groupName);
-        boolean wasMember = group != null && group.getMembers().contains(targetMember);
-        groupService.removeMember(groupName, targetMember);
-        if (wasMember) {
-            ChatMessageDto leaveMessage = new ChatMessageDto();
-            leaveMessage.setSender(targetMember);
-            leaveMessage.setContent(targetMember + " was removed from the group");
-            leaveMessage.setTimestamp(LocalDateTime.now().toString());
-            leaveMessage.setType("LEAVE");
-            messagingTemplate.convertAndSend("/topic/group/" + groupName, leaveMessage);
+        LocalDateTime removedAt = groupService.removeMember(groupName, targetMember);
+        if (removedAt != null) {
+            ChatMessageDto kickEvent = createGroupEvent(
+                    "KICKED_OUT", targetMember, targetMember + " was removed from the group", groupName);
+            kickEvent.setTimestamp(removedAt.toString());
+            messagingTemplate.convertAndSend("/topic/group/" + groupName, kickEvent);
         }
 
         return ResponseEntity.ok(Map.of("removed", true));
@@ -232,15 +260,34 @@ public class GroupController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Group not found"));
         }
 
+        boolean expired = group.isExpired() || groupService.getMinutesUntilExpiry(groupName) <= 0;
         boolean isAdmin = username != null && group.getCreatedBy().equals(username);
 
-        if (!group.isExpired() && !isAdmin) {
+        if (!expired && !isAdmin) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Only admin can delete the group"));
         }
 
         groupService.deleteGroup(groupName);
+        messagingTemplate.convertAndSend(
+                "/topic/group/" + groupName,
+                createGroupEvent(
+                        expired ? "GROUP_EXPIRED" : "GROUP_DELETED",
+                        username == null ? "" : username,
+                        expired ? "This group has expired" : "This group was deleted",
+                        groupName)
+        );
 
         return ResponseEntity.ok(Map.of("deleted", true));
+    }
+
+    private ChatMessageDto createGroupEvent(String type, String sender, String content, String groupName) {
+        ChatMessageDto event = new ChatMessageDto();
+        event.setType(type);
+        event.setSender(sender);
+        event.setContent(content);
+        event.setTimestamp(LocalDateTime.now().toString());
+        event.setGroupName(groupName);
+        return event;
     }
 
 }

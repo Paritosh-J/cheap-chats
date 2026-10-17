@@ -10,8 +10,11 @@ public class ChatMessageDto {
     private String sender;
     private String content;
     private String timestamp;
-    private String type; // JOIN, LEAVE, CHAT
+    private String type;
     private ReplyPreviewDto replyTo;
+    private String groupName;
+    private Long expiresAtEpochMillis;
+    private String clientMessageId;
 
     @Data
     @NoArgsConstructor

@@ -41,8 +41,6 @@ const GroupPage: React.FC = () => {
 
       if (response.status === 200) {
         showToast(`Group "${response.data.groupName}" created`, "success");
-        // set flag to indicate just joined
-        sessionStorage.setItem("justJoinedGroup", "true");
         // redirect to newly created group
         navigate(`/group/${response.data.groupName}`);
       } else {
@@ -52,7 +50,7 @@ const GroupPage: React.FC = () => {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         // if group already exists
         setError(
-          "Group with this name already exists. Please choose a different name."
+          "Group with this name already exists. Please choose a different name.",
         );
         showToast("That group name is already taken", "error");
       } else {
@@ -78,8 +76,6 @@ const GroupPage: React.FC = () => {
 
       if (response.status === 200) {
         showToast(`Joined "${response.data.groupName}"`, "success");
-        // set flag to indicate just joined
-        sessionStorage.setItem("justJoinedGroup", "true");
         // redirect to the group chat room
         navigate(`/group/${response.data.groupName}`);
       } else {
@@ -87,7 +83,10 @@ const GroupPage: React.FC = () => {
       }
     } catch {
       setError("An error occurred while joining the group.");
-      showToast("Could not join group. Check the group name and try again.", "error");
+      showToast(
+        "Could not join group. Check the group name and try again.",
+        "error",
+      );
     }
   };
 
@@ -134,10 +133,11 @@ const GroupPage: React.FC = () => {
         <div className="mb-5">
           <h3 className="font-medium mb-2 text-gray-700">Create a New Group</h3>
           <input
+            id="group-name-input"
             type="text"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            placeholder="Group Name"
+            placeholder="Unique group name"
             className="w-full mb-2 p-2 border border-gray-300 rounded"
           />
           <h3 className="font-medium mb-2 text-gray-700">
@@ -151,6 +151,7 @@ const GroupPage: React.FC = () => {
             className="w-full mb-2 p-2 border border-gray-300 rounded"
           />
           <button
+            id="create-group-button"
             onClick={handleCreate}
             className="w-full bg-green-500 text-white font-bold py-2 rounded hover:bg-green-600 transition-all cursor-pointer"
           >
@@ -161,6 +162,7 @@ const GroupPage: React.FC = () => {
 
           {/* My Groups Button */}
           <button
+            id="my-groups-button"
             onClick={fetchMyGroups}
             className="w-full bg-purple-500 text-white font-bold py-2 rounded mt-2 hover:bg-purple-600 transition-all cursor-pointer"
           >
@@ -186,6 +188,7 @@ const GroupPage: React.FC = () => {
                     >
                       <span>#{group.groupName}</span>
                       <button
+                        id="navigate-group-button"
                         className="ml-2 px-2 py-1 bg-green-100 rounded-full transition-all duration-200 hover:bg-green-200 hover:scale-110 text-green-600 rounded text-xs cursor-pointer border border-green"
                         onClick={() => navigate(`/group/${group.groupName}`)}
                       >
@@ -197,6 +200,7 @@ const GroupPage: React.FC = () => {
               )}
               <div className="flex justify-center mt-4">
                 <button
+                  id="close-groups-button"
                   onClick={() => setShowGroups(false)}
                   className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
                   title="Close Groups"
@@ -217,13 +221,15 @@ const GroupPage: React.FC = () => {
             Join Existing Group
           </h3>
           <input
+            id="group-name-input"
             type="text"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            placeholder="Group ID"
+            placeholder="Group name"
             className="w-full mb-2 p-2 border border-gray-300 rounded"
           />
           <button
+            id="join-group-button"
             onClick={handleJoin}
             className="w-full bg-blue-500 text-white font-bold py-2 rounded hover:bg-blue-600 transition-all cursor-pointer"
           >
@@ -236,6 +242,7 @@ const GroupPage: React.FC = () => {
         {/* Logout Button */}
         <div className="flex justify-center mt-4">
           <button
+            id="logout-button"
             onClick={() => {
               localStorage.removeItem("username");
               navigate("/");

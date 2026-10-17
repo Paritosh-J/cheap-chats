@@ -11,6 +11,9 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -49,8 +52,35 @@ public class ChatController {
 
     // Broadcast the message to all subscribers of the group and persist it
     @MessageMapping("/chat/{groupName}/send")
+    @Transactional
     public void sendMessage(@DestinationVariable("groupName") String groupName, @Payload ChatMessageDto messageDto) {
         try {
+            ChatGroup group = chatGroupRepository.findById(groupName).orElse(null);
+            if (group == null) {
+                log.warn("Ignoring message for missing group: group={}, sender={}",
+                        groupName, messageDto.getSender());
+                rejectMessage(messageDto, "Group no longer exists");
+                return;
+            }
+            if (!isActiveMember(group, messageDto.getSender())) {
+                log.warn("Ignoring message from non-member: group={}, sender={}",
+                        groupName, messageDto.getSender());
+                rejectMessage(messageDto, "You are not an active member of this group");
+                return;
+            }
+            if (isExpired(group)) {
+                log.warn("Ignoring message for expired group: group={}, sender={}",
+                        groupName, messageDto.getSender());
+                rejectMessage(messageDto, "This group has expired");
+                return;
+            }
+            if (!"CHAT".equals(messageDto.getType())) {
+                log.warn("Ignoring non-chat WebSocket payload: group={}, type={}",
+                        groupName, messageDto.getType());
+                rejectMessage(messageDto, "Message could not be sent");
+                return;
+            }
+
             // Set timestamp
             messageDto.setTimestamp(LocalDateTime.now().toString());
 
@@ -66,8 +96,6 @@ public class ChatController {
                 entity.setReplyToContent(messageDto.getReplyTo().getContent());
                 entity.setReplyToTimestamp(messageDto.getReplyTo().getTimestamp());
             }
-
-            updateGroupMembers(groupName, messageDto);
 
             // Save message to database
             ChatMessage savedEntity = chatMessageRepository.save(entity);
@@ -87,12 +115,18 @@ public class ChatController {
     @DeleteMapping("/{messageId}")
     public void deleteMessage(@PathVariable Long messageId, @RequestParam String groupName, @RequestParam String username) {
         try {
+            ChatGroup group = chatGroupRepository.findById(groupName)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group not found"));
+            if (!group.getMembers().contains(username) || isExpired(group)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only active group members can delete messages");
+            }
+
             // Find the message
             ChatMessage message = chatMessageRepository.findById(messageId)
                     .orElseThrow(() -> new RuntimeException("Message not found"));
 
             // Check if the user is the sender of the message
-            if (!message.getSender().equals(username)) {
+            if (!message.getSender().equals(username) || !groupName.equals(message.getGroupName())) {
                 log.info("DELETE DENIED: User " + username + " tried to delete message " + messageId + " sent by " + message.getSender());
                 return;
             }
@@ -121,8 +155,20 @@ public class ChatController {
 
     // REST endpoint to fetch all messages for a group
     @GetMapping("/{groupName}")
-    public List<com.paritosh.cheapchats.dto.ChatMessageDto> getMessagesForGroup(@PathVariable String groupName) {
-        return chatMessageRepository.findByGroupNameOrderByTimestampAsc(groupName)
+    public List<com.paritosh.cheapchats.dto.ChatMessageDto> getMessagesForGroup(
+            @PathVariable String groupName,
+            @org.springframework.web.bind.annotation.RequestParam String username) {
+        ChatGroup group = chatGroupRepository.findById(groupName)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group not found"));
+        LocalDateTime removedAt = group.getKickedMembers().get(username);
+        if (!group.getMembers().contains(username) && removedAt == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not allowed to view this group");
+        }
+
+        List<ChatMessage> groupMessages = removedAt == null
+                ? chatMessageRepository.findByGroupNameOrderByTimestampAsc(groupName)
+                : chatMessageRepository.findByGroupNameAndTimestampBeforeOrderByTimestampAsc(groupName, removedAt);
+        return groupMessages
                 .stream()
                 .map(entity -> {
                     com.paritosh.cheapchats.dto.ChatMessageDto dto = new com.paritosh.cheapchats.dto.ChatMessageDto();
@@ -144,20 +190,38 @@ public class ChatController {
                 .collect(Collectors.toList());
     }
 
-    private void updateGroupMembers(String groupName, ChatMessageDto messageDto) {
-        if (!"JOIN".equals(messageDto.getType()) && !"LEAVE".equals(messageDto.getType())) {
+    private boolean isExpired(ChatGroup group) {
+        if (group.isExpired()) {
+            return true;
+        }
+        LocalDateTime expiresAt = group.getExpiresAt();
+        if (expiresAt == null && group.getCreatedAt() != null) {
+            try {
+                expiresAt = group.getCreatedAt().plusMinutes(Long.parseLong(group.getExpiresIn()));
+            } catch (NumberFormatException ignored) {
+                return false;
+            }
+        }
+        return expiresAt != null && !expiresAt.isAfter(LocalDateTime.now());
+    }
+
+    private boolean isActiveMember(ChatGroup group, String username) {
+        return username != null
+                && !group.getKickedMembers().containsKey(username)
+                && (group.getMembers().contains(username) || username.equals(group.getCreatedBy()));
+    }
+
+    private void rejectMessage(ChatMessageDto messageDto, String reason) {
+        if (messageDto.getSender() == null || messageDto.getClientMessageId() == null) {
             return;
         }
-
-        chatGroupRepository.findById(groupName).ifPresent(group -> {
-            if ("JOIN".equals(messageDto.getType())) {
-                if (!group.getMembers().contains(messageDto.getSender())) {
-                    group.getMembers().add(messageDto.getSender());
-                }
-            } else {
-                group.getMembers().remove(messageDto.getSender());
-            }
-            chatGroupRepository.save(group);
-        });
+        ChatMessageDto rejection = new ChatMessageDto();
+        rejection.setType("MESSAGE_REJECTED");
+        rejection.setSender(messageDto.getSender());
+        rejection.setContent(reason);
+        rejection.setClientMessageId(messageDto.getClientMessageId());
+        rejection.setTimestamp(LocalDateTime.now().toString());
+        messagingTemplate.convertAndSend("/topic/user/" + messageDto.getSender(), rejection);
     }
+
 }

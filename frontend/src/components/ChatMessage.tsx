@@ -8,6 +8,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   isOwnMessage,
   onDelete,
   onReply,
+  isReadOnly = false,
 }) => {
   const { showToast } = useChat();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -34,6 +35,24 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       onReply(message);
     }
   };
+
+  if (message.type !== "CHAT") {
+    return (
+      <div className="mb-3 flex justify-center">
+        <div className="inline-flex max-w-full items-center gap-2 overflow-hidden rounded-full border border-yellow-400/70 bg-yellow-200/70 px-3 py-1 text-center text-xs text-gray-800">
+          <span className="truncate">{message.content}</span>
+          {message.timestamp && (
+            <time className="shrink-0 text-[10px] text-gray-600">
+              {new Date(message.timestamp).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </time>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -90,20 +109,12 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
+                {message.pending && (
+                  <span className="ml-2 text-gray-600">Sending...</span>
+                )}
               </div>
             </>
-          ) : (
-            <>
-              <em className="text-[12px]">{message.content}</em>
-              <div className="text-[11px] text-right mt-2 text-black">
-                {message.timestamp &&
-                  new Date(message.timestamp).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-              </div>
-            </>
-          )}
+          ) : null}
         </div>
 
         {/* Action Buttons */}
@@ -113,6 +124,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             <button
               id="reply-button"
               onClick={handleReply}
+              disabled={isReadOnly}
               className="p-1.5 bg-gray-100 hover:bg-gray-200 border border-black/50 rounded-full transition-colors duration-150 cursor-pointer"
               title="Reply to message"
             >
@@ -124,10 +136,11 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
               <button
                 id="delete-button"
                 onClick={() => setConfirmingDelete((confirming) => !confirming)}
-                className="p-1.5 bg-red-100 hover:bg-red-200 border border-red-500 rounded-full transition-colors duration-150 cursor-pointer"
+                disabled={isReadOnly}
+                className="p-1.5 bg-red-100 hover:bg-red-200 border border-red-800 rounded-full transition-colors duration-150 cursor-pointer"
                 title="Delete message"
               >
-                <BsTrash className="w-3 h-3 text-red-600" />
+                <BsTrash className="w-3 h-3 text-red-800" />
               </button>
             )}
 
@@ -135,21 +148,23 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
               <div
                 role="alertdialog"
                 aria-label="Confirm message deletion"
-                className="absolute right-20 bottom-full z-10 mb-2 w-48 rounded-lg border border-red-300 bg-white p-3 text-left text-xs text-gray-800 shadow-lg"
+                className="absolute right-0 bottom-full z-10 mb-2 w-48 rounded-lg border border-gray-500 bg-white p-3 text-center text-xs text-gray-800 shadow-lg backdrop-blur-sm"
               >
                 <p className="mb-2 font-medium">Delete this message?</p>
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-center gap-2">
                   <button
                     type="button"
                     onClick={() => setConfirmingDelete(false)}
-                    className="rounded px-2 py-1 hover:bg-gray-100"
+                    disabled={isReadOnly}
+                    className="min-w-16 rounded px-2 py-1 border border-gray-500 hover:bg-gray-100 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={handleDelete}
-                    className="rounded bg-red-600 px-2 py-1 text-white hover:bg-red-700"
+                    disabled={isReadOnly}
+                    className="min-w-16 rounded bg-red-600 px-2 py-1 text-white border border-gray-500 hover:bg-red-700 cursor-pointer"
                   >
                     Delete
                   </button>
@@ -161,6 +176,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             <button
               id="copy-button"
               onClick={handleCopy}
+              disabled={isReadOnly}
               className="p-1.5 bg-gray-100 hover:bg-gray-200 border border-black/50 rounded-full transition-colors duration-150 cursor-pointer"
               title="Copy message"
             >

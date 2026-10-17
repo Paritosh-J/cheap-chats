@@ -46,9 +46,16 @@ const ChatRoom: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMemberSettings, setShowMemberSettings] = useState(false);
+  const [memberPendingRemoval, setMemberPendingRemoval] = useState<
+    string | null
+  >(null);
+  const [isRemovingMember, setIsRemovingMember] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [membersList, setMembersList] = useState<string[]>([]);
   const membershipChanges = useRef(new Map<string, "JOIN" | "LEAVE">());
+  const [isKickedOut, setIsKickedOut] = useState(false);
+  const [groupStatusName, setGroupStatusName] = useState<string | null>(null);
+  const kickedOutRef = useRef(false);
   const [isNameTaken, setIsNameTaken] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -58,6 +65,7 @@ const ChatRoom: React.FC = () => {
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [newExpiryTime, setNewExpiryTime] = useState(60);
   const [isGroupExpired, setIsGroupExpired] = useState(false);
+  const isReadOnly = isKickedOut || groupStatusName !== groupName;
   const minsLeft =
     expiryAt === null ? null : Math.max(0, (expiryAt - currentTime) / 60_000);
 
@@ -70,23 +78,54 @@ const ChatRoom: React.FC = () => {
       return;
     }
 
+    kickedOutRef.current = false;
+
     // fetch group name
     const fetchGroupName = async () => {
       try {
         const response = await getGroupInfo(groupName);
         setResolvedGroupName(response.data.groupName);
         setIsAdmin(response.data.createdBy === username);
+        const wasKickedOut = Boolean(response.data.kickedMembers?.[username!]);
+        kickedOutRef.current = wasKickedOut;
+        setIsKickedOut(wasKickedOut);
+        setGroupStatusName(groupName);
       } catch (error) {
         console.error("Failed to fetch group info:", error);
         setResolvedGroupName("Group not found!");
+        setGroupStatusName(groupName);
       }
     };
 
     // fetch persisted messages
     const fetchMessages = async () => {
       try {
-        const data = await getGroupMessages(groupName);
-        setMessages(data);
+        const data: ChatMessage[] = await getGroupMessages(
+          groupName,
+          username!,
+        );
+        setMessages((currentMessages) => {
+          const fetchedIds = new Set(
+            data
+              .map((message) => message.id)
+              .filter((id): id is number => id !== undefined),
+          );
+          const fetchedClientIds = new Set(
+            data
+              .map((message) => message.clientMessageId)
+              .filter((id): id is string => id !== undefined),
+          );
+          const messagesReceivedWhileLoading = currentMessages.filter(
+            (message) => {
+              if (message.id !== undefined) return !fetchedIds.has(message.id);
+              if (message.clientMessageId !== undefined) {
+                return !fetchedClientIds.has(message.clientMessageId);
+              }
+              return Boolean(message.pending);
+            },
+          );
+          return [...data, ...messagesReceivedWhileLoading];
+        });
       } catch (error) {
         console.error("Failed to fetch messages:", error);
         setMessages([]);
@@ -108,12 +147,129 @@ const ChatRoom: React.FC = () => {
       () => {
         console.log("WebSocket connected successfully");
 
+        stompClient.current?.subscribe(
+          `/topic/user/${username}`,
+          (payload: { body: string }) => {
+            const event: ChatMessage = JSON.parse(payload.body);
+            if (event.type !== "MESSAGE_REJECTED" || !event.clientMessageId) {
+              return;
+            }
+            setMessages((previousMessages) =>
+              previousMessages.filter(
+                (message) => message.clientMessageId !== event.clientMessageId,
+              ),
+            );
+            showToast(event.content || "Message could not be sent", "error");
+          },
+        );
+
         // Subscribe to group messages
         stompClient.current?.subscribe(
           `/topic/group/${groupName}`,
           (payload: { body: string }) => {
             const msg: ChatMessage = JSON.parse(payload.body);
             console.log("Received WebSocket message:", msg);
+
+            if (msg.type === "GROUP_UPDATED") {
+              if (msg.expiresAtEpochMillis) {
+                setExpiryAt(msg.expiresAtEpochMillis);
+                setCurrentTime(Date.now());
+                setIsGroupExpired(msg.expiresAtEpochMillis <= Date.now());
+              }
+              const updatedGroupName = msg.groupName;
+              if (updatedGroupName && updatedGroupName !== groupName) {
+                setResolvedGroupName(updatedGroupName);
+                navigate(`/group/${updatedGroupName}`);
+              }
+              if (msg.sender !== username) {
+                showToast(msg.content || "Group settings updated", "success");
+              }
+              return;
+            }
+
+            if (msg.type === "GROUP_EXPIRED") {
+              setIsGroupExpired(true);
+              setExpiryAt(Date.now());
+              showToast("This group has expired", "error");
+              stompClient.current?.disconnect();
+              return;
+            }
+
+            if (msg.type === "GROUP_DELETED") {
+              if (msg.sender !== username) {
+                showToast("This group was deleted", "error");
+              }
+              navigate("/group");
+              return;
+            }
+
+            if (msg.type === "KICKED_OUT") {
+              membershipChanges.current.set(msg.sender, "LEAVE");
+              setMessages((previousMessages) => {
+                if (
+                  previousMessages.some(
+                    (message) =>
+                      message.type === "KICKED_OUT" &&
+                      message.sender === msg.sender &&
+                      message.timestamp === msg.timestamp,
+                  )
+                ) {
+                  return previousMessages;
+                }
+                return [...previousMessages, msg];
+              });
+              setMembersList((previousMembers) =>
+                previousMembers.filter((member) => member !== msg.sender),
+              );
+              if (msg.sender === username) {
+                kickedOutRef.current = true;
+                setIsKickedOut(true);
+                setInput("");
+                setReplyTo(null);
+                setShowGroupSettings(false);
+                setShowMemberSettings(false);
+                setShowDeleteConfirm(false);
+                showToast(
+                  `${username} was removed from this group`,
+                  "error",
+                  username!,
+                );
+              } else {
+                showToast(msg.content, "error", msg.sender);
+              }
+              return;
+            }
+
+            if (
+              kickedOutRef.current &&
+              ["CHAT", "DELETE", "JOIN", "LEAVE"].includes(msg.type)
+            ) {
+              return;
+            }
+
+            if (msg.type === "CHAT" && msg.clientMessageId) {
+              setMessages((previousMessages) => {
+                const optimisticIndex = previousMessages.findIndex(
+                  (message) => message.clientMessageId === msg.clientMessageId,
+                );
+                if (optimisticIndex === -1) {
+                  if (
+                    msg.id &&
+                    previousMessages.some((message) => message.id === msg.id)
+                  ) {
+                    return previousMessages;
+                  }
+                  return [...previousMessages, { ...msg, pending: false }];
+                }
+
+                return previousMessages.map((message, index) =>
+                  index === optimisticIndex
+                    ? { ...msg, pending: false }
+                    : message,
+                );
+              });
+              return;
+            }
 
             if (msg.type === "JOIN" || msg.type === "LEAVE") {
               membershipChanges.current.set(msg.sender, msg.type);
@@ -123,9 +279,15 @@ const ChatRoom: React.FC = () => {
                     ? previousMembers
                     : [...previousMembers, msg.sender];
                 }
-                return previousMembers.filter((member) => member !== msg.sender);
+                return previousMembers.filter(
+                  (member) => member !== msg.sender,
+                );
               });
-              showToast(msg.content, "success");
+              showToast(
+                msg.content,
+                msg.type === "JOIN" ? "success" : "error",
+                msg.sender,
+              );
             }
 
             if (msg.type === "DELETE") {
@@ -134,7 +296,7 @@ const ChatRoom: React.FC = () => {
               setMessages((prev) => {
                 const filtered = prev.filter((m) => m.id !== msg.id);
                 console.log(
-                  `Removed message ${msg.id}. Messages count: ${prev.length} -> ${filtered.length}`
+                  `Removed message ${msg.id}. Messages count: ${prev.length} -> ${filtered.length}`,
                 );
                 return filtered;
               });
@@ -147,49 +309,19 @@ const ChatRoom: React.FC = () => {
                 return [...prev, msg];
               });
             }
-          }
+          },
         );
 
-        // Send JOIN message only if just joined
-        if (sessionStorage.getItem("justJoinedGroup") === "true") {
-          const joinMsg: ChatMessage = {
-            sender: username!,
-            content: `${username} joined the group`,
-            type: "JOIN",
-            timestamp: new Date().toISOString(),
-          };
-          stompClient.current?.send(
-            `/app/chat/${groupName}/send`,
-            {},
-            JSON.stringify(joinMsg)
-          );
-          sessionStorage.removeItem("justJoinedGroup");
-        }
+        sessionStorage.removeItem("justJoinedGroup");
       },
       (error: any) => {
         console.error("WebSocket connection error:", error);
-      }
+      },
     );
 
-    // handle disconnection (leave group)
+    // Disconnecting from the room does not mean the user left the group.
     return () => {
       if (stompClient.current?.connected) {
-        // create LEAVE message
-        const leaveMsg: ChatMessage = {
-          sender: username!,
-          content: `${username} left the group`,
-          type: "LEAVE",
-          timestamp: new Date().toISOString(),
-        };
-
-        // send leave message to the server
-        stompClient.current.send(
-          `/app/chat/${groupName}/send`,
-          {},
-          JSON.stringify(leaveMsg)
-        );
-
-        // disconnect the client
         stompClient.current.disconnect();
       }
     };
@@ -275,12 +407,14 @@ const ChatRoom: React.FC = () => {
   // Send message with cleaning
   const sendMessage = useCallback(() => {
     const cleaned = cleanMessage(input);
-    if (!cleaned || !stompClient.current?.connected) return;
+    if (!cleaned || !stompClient.current?.connected || isReadOnly) return;
     const msg: ChatMessage = {
       sender: username!,
       content: cleaned,
       type: "CHAT",
       timestamp: new Date().toISOString(),
+      clientMessageId: crypto.randomUUID(),
+      pending: true,
       replyTo: replyTo
         ? {
             sender: replyTo.sender,
@@ -290,14 +424,24 @@ const ChatRoom: React.FC = () => {
         : undefined,
     };
 
-    // send message to the server
-    stompClient.current.send(
-      `/app/chat/${groupName}/send`,
-      {},
-      JSON.stringify(msg)
-    );
+    setMessages((previousMessages) => [...previousMessages, msg]);
+    try {
+      stompClient.current.send(
+        `/app/chat/${groupName}/send`,
+        {},
+        JSON.stringify(msg),
+      );
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      setMessages((previousMessages) =>
+        previousMessages.filter(
+          (message) => message.clientMessageId !== msg.clientMessageId,
+        ),
+      );
+      showToast("Message could not be sent", "error");
+      return;
+    }
 
-    // update local messages state
     setInput("");
     setReplyTo(null);
     // Reset textarea height
@@ -305,7 +449,7 @@ const ChatRoom: React.FC = () => {
       inputRef.current.style.height = "auto";
       focusInput();
     }
-  }, [input, stompClient, username, groupName, replyTo]);
+  }, [input, stompClient, username, groupName, replyTo, isReadOnly, showToast]);
 
   // Handle keydown for textarea
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -318,9 +462,10 @@ const ChatRoom: React.FC = () => {
 
   // DELETE MESSAGE
   const handleDeleteMessage = async (messageId: number) => {
+    if (isReadOnly) return;
     try {
       console.log(
-        `Attempting to delete message ${messageId} in group ${groupName} by user ${username}`
+        `Attempting to delete message ${messageId} in group ${groupName} by user ${username}`,
       );
       // Call backend API to delete message
       await deleteMessage(messageId.toString(), groupName!, username!);
@@ -333,6 +478,7 @@ const ChatRoom: React.FC = () => {
 
   // REPLY TO MESSAGE
   const handleReplyToMessage = (message: ChatMessage) => {
+    if (isReadOnly) return;
     setReplyTo(message);
     // Focus on input field
     focusInput();
@@ -399,7 +545,9 @@ const ChatRoom: React.FC = () => {
           expiryDuration <= 0 ||
           !Number.isFinite(deadline)
         ) {
-          throw new Error("Backend returned invalid group creation or expiry data");
+          throw new Error(
+            "Backend returned invalid group creation or expiry data",
+          );
         }
         setExpiryLoadFailed(false);
         setExpiryAt(deadline);
@@ -410,9 +558,6 @@ const ChatRoom: React.FC = () => {
           deleteGroup(groupName, username).catch((error) => {
             console.error("Failed to delete expired group", error);
           });
-          if (stompClient.current?.connected) {
-            stompClient.current.disconnect();
-          }
           return;
         }
 
@@ -436,13 +581,11 @@ const ChatRoom: React.FC = () => {
     deleteGroup(groupName!, username!).catch((error) => {
       console.error("Failed to delete expired group", error);
     });
-    if (stompClient.current?.connected) {
-      stompClient.current.disconnect();
-    }
   }, [expiryAt, minsLeft, isGroupExpired, groupName, username]);
 
   // UPDATE GROUP
   const handleUpdateGroup = async () => {
+    if (isReadOnly) return;
     if (newExpiryTime <= 0) {
       alert("Expiry time must be greater than zero.");
       return;
@@ -455,7 +598,11 @@ const ChatRoom: React.FC = () => {
         newGroupName: requestedGroupName || groupName!,
         newExpiryMinutes: newExpiryTime,
       };
-      const updateResponse = await updateGroupSettings(groupName!, settings);
+      const updateResponse = await updateGroupSettings(
+        groupName!,
+        settings,
+        username!,
+      );
       if (!updateResponse.data.updated) {
         throw new Error("The backend did not apply the group settings.");
       }
@@ -481,7 +628,9 @@ const ChatRoom: React.FC = () => {
         expiryDuration <= 0 ||
         !Number.isFinite(deadline)
       ) {
-        throw new Error("Backend returned invalid group creation or expiry data");
+        throw new Error(
+          "Backend returned invalid group creation or expiry data",
+        );
       }
       setExpiryLoadFailed(false);
       setExpiryAt(deadline);
@@ -497,7 +646,7 @@ const ChatRoom: React.FC = () => {
         (error as any).response?.data?.message?.includes("already exists")
       ) {
         alert(
-          "A group with this name already exists. Please choose a different name."
+          "A group with this name already exists. Please choose a different name.",
         );
       }
 
@@ -528,6 +677,7 @@ const ChatRoom: React.FC = () => {
 
   // DELETE GROUP
   const handleDeleteGroup = async () => {
+    if (isReadOnly) return;
     try {
       await deleteGroup(groupName!, username!);
       showToast("Group deleted", "success");
@@ -540,17 +690,22 @@ const ChatRoom: React.FC = () => {
 
   // REMOVE MEMBER
   const handleRemoveMember = async (targetMember: string) => {
+    if (isReadOnly) return;
+    setIsRemovingMember(true);
     try {
       await removeMember(groupName!, targetMember);
       // update member list
       setMembersList((prev) =>
-        prev.filter((member) => member !== targetMember)
+        prev.filter((member) => member !== targetMember),
       );
       membershipChanges.current.set(targetMember, "LEAVE");
+      setMemberPendingRemoval(null);
     } catch (error) {
       console.error("Failed to remove member:", error);
       showToast(`Could not remove ${targetMember}`, "error");
       alert("Failed to remove member");
+    } finally {
+      setIsRemovingMember(false);
     }
   };
 
@@ -567,14 +722,17 @@ const ChatRoom: React.FC = () => {
 
   return (
     // <div className="flex flex-col h-screen px-2 pt-4 pb-3 chatroom-background relative">
-    <div className="flex flex-col h-screen bg-gradient-to-b from-slate-50 to-green-200 px-2 pt-4 pb-3">
-
+    <div className="flex flex-col h-screen bg-white px-2 pt-4 pb-3">
       {/* Group DEAD stamp */}
-      {isGroupExpired && (
+      {isGroupExpired ? (
         <div className="dead-stamp" area-hidden="true">
           DEAD
         </div>
-      )}
+      ) : isKickedOut ? (
+        <div className="dead-stamp kicked-out-stamp" area-hidden="true">
+          KICKED OUT
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-between border border-black p-2 bg-white text-black rounded">
         {/* Back button */}
@@ -613,6 +771,7 @@ const ChatRoom: React.FC = () => {
           {/* Group settings button */}
           <button
             id="group-settings-button"
+            disabled={isReadOnly}
             onClick={() => {
               setShowGroupSettings(true);
             }}
@@ -625,6 +784,7 @@ const ChatRoom: React.FC = () => {
           {/* Group members settings button */}
           <button
             id="group-members-button"
+            disabled={isReadOnly}
             onClick={() => setShowMemberSettings(true)}
             className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
             title="Members settings"
@@ -636,6 +796,7 @@ const ChatRoom: React.FC = () => {
             // Delete group button
             <button
               id="delete-group-button"
+              disabled={isReadOnly}
               onClick={() => setShowDeleteConfirm(true)}
               className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
               title="Delete message"
@@ -647,6 +808,7 @@ const ChatRoom: React.FC = () => {
           {/* Logout button */}
           <button
             id="logout-button"
+            disabled={isReadOnly}
             onClick={() => {
               localStorage.removeItem("username");
               navigate("/");
@@ -660,7 +822,7 @@ const ChatRoom: React.FC = () => {
       </div>
 
       {/* Group settings popup */}
-      {showGroupSettings && (
+      {showGroupSettings && !isReadOnly && (
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs z-50">
           <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-full">
             <h3 className="text-lg font-bold mb-2 text-green-600 text-center">
@@ -764,7 +926,7 @@ const ChatRoom: React.FC = () => {
       )}
 
       {/* Group Members setting popup */}
-      {showMemberSettings && (
+      {showMemberSettings && !isReadOnly && (
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs bg-opacity-40 z-50 ">
           <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-full">
             <h3 className="text-lg font-bold mb-2 text-green-600 text-center">
@@ -774,18 +936,51 @@ const ChatRoom: React.FC = () => {
               {membersList.map((member) => (
                 <li
                   key={member}
-                  className="flex justify-center items-center py-1"
+                  className="relative flex justify-center items-center py-1"
                 >
                   <span className="text-lg">{member}</span>
                   {member !== username && (
                     <button
                       id="remove-member-button"
                       className="ml-2 px-1 py-1 bg-red-100 rounded-full transition-all duration-200 hover:bg-red-200 hover:scale-110 text-red-600 rounded text-sm cursor-pointer border border-red"
-                      onClick={() => handleRemoveMember(member)}
+                      onClick={() => setMemberPendingRemoval(member)}
                       title="Remove member"
                     >
                       <BsPersonFillSlash className="" />
                     </button>
+                  )}
+                  {memberPendingRemoval === member && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
+                      <div
+                        role="alertdialog"
+                        aria-label={`Remove ${member} from group`}
+                        className="w-[35%] rounded-xl border border-gray-300 bg-white p-5 text-center text-sm text-gray-800 shadow-xl"
+                      >
+                        <p className="mb-4">
+                          Remove{" "}
+                          <span style={{ fontWeight: "bold" }}>{member}</span>{" "}
+                          from this group?
+                        </p>
+                        <div className="flex justify-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setMemberPendingRemoval(null)}
+                            disabled={isRemovingMember}
+                            className="min-w-20 rounded border border-gray-500 px-3 py-1.5 hover:bg-gray-100 cursor-pointer disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleRemoveMember(member)}
+                            disabled={isRemovingMember}
+                            className="min-w-20 rounded border border-red-700 bg-red-600 px-3 py-1.5 text-white hover:bg-red-700 cursor-pointer disabled:opacity-50"
+                          >
+                            {isRemovingMember ? "Removing..." : "Remove"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </li>
               ))}
@@ -810,7 +1005,7 @@ const ChatRoom: React.FC = () => {
       )}
 
       {/* Delete Group Confirmation Popup */}
-      {showDeleteConfirm && (
+      {showDeleteConfirm && !isReadOnly && (
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs bg-opacity-40 z-50 ">
           <div className="bg-white p-6 rounded shadow-lg max-w-xs w-full">
             <h3 className="text-lg font-bold mb-2 text-red-600 text-center">
@@ -822,10 +1017,10 @@ const ChatRoom: React.FC = () => {
                 cannot be undone!
               </span>
             </p>
-            <div className="flex justify-center gap-2">
+            <div className="flex justify-center gap-3">
               <button
                 id="cancel-delete-group-button"
-                className="flex-1 px-3 py-1 bg-gray-200 rounded transition-all duration-200 hover:scale-110 hover:bg-gray-300 cursor-pointer border border-black"
+                className="min-w-24 px-3 py-1 bg-gray-200 rounded transition-all duration-200 hover:scale-110 hover:bg-gray-300 cursor-pointer border border-black"
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   focusInput();
@@ -835,7 +1030,7 @@ const ChatRoom: React.FC = () => {
               </button>
               <button
                 id="confirm-delete-group-button"
-                className="flex-1 px-3 py-1 bg-red-600 text-white rounded transition-all duration-200 hover:scale-110 hover:bg-red-700 cursor-pointer border border-black"
+                className="min-w-24 px-3 py-1 bg-red-600 text-white rounded transition-all duration-200 hover:scale-110 hover:bg-red-700 cursor-pointer border border-black"
                 onClick={handleDeleteGroup}
               >
                 Delete
@@ -860,6 +1055,7 @@ const ChatRoom: React.FC = () => {
             onDelete={handleDeleteMessage}
             onReply={handleReplyToMessage}
             username={username!}
+            isReadOnly={isReadOnly}
           />
         ))}
         <div ref={chatEndRef} />
@@ -878,6 +1074,7 @@ const ChatRoom: React.FC = () => {
             <button
               id="cancel-reply-button"
               onClick={cancelReply}
+              disabled={isReadOnly}
               className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
               title="Close Groups"
             >
@@ -890,13 +1087,16 @@ const ChatRoom: React.FC = () => {
       {/* Message input field */}
       <div className="flex flex-col" style={{ position: "relative" }}>
         <p className="mb-1 text-center text-[11px] font-light text-gray-600">
-          This group will <span>vanish from "My Groups"</span> once timer expires!
+          This group will{" "}
+          <span style={{ fontWeight: "bold" }}>vanish from "My Groups"</span>{" "}
+          once timer expires!
         </p>
         {/* Scroll to Bottom Button - bottom right above send button */}
         {showScrollToBottom && (
           <button
             id="scroll-to-bottom-button"
             onClick={scrollToBottom}
+            disabled={isReadOnly}
             className="fixed md:absolute right-15 md:right-4 bottom-17 p-2 bg-black text-white rounded-full shadow-lg border-2 border-white  hover:bg-white hover:text-black hover:border-1 hover:border-black transition z-20 hover:scale-110 cursor-pointer"
             style={{
               boxShadow: "0 2px 8px rgba(14, 8, 8, 0.15)",
@@ -916,30 +1116,33 @@ const ChatRoom: React.FC = () => {
             onKeyDown={handleInputKeyDown}
             // className="flex-1 p-2 rounded-l border border-black bg-white focus:outline-none resize-none max-h-40 min-h-[40px]"
             className={`flex-1 p-2 rounded-l border border-black bg-white focus:outline-none resize-none max-h-40 min-h-[40px] ${
-              isGroupExpired ? "cursor-not-allowed" : ""
+              isGroupExpired || isReadOnly ? "cursor-not-allowed" : ""
             }`}
             placeholder={
-              isGroupExpired
-                ? "Group has expired ... 💀😵🪦"
-                : replyTo
-                ? `Reply to ${replyTo.sender}...`
-                : "your cheap shots ... 😏"
+              isKickedOut
+                ? "You were removed from this group"
+                : isGroupExpired
+                  ? "Group has expired ... 💀😵🪦"
+                  : replyTo
+                    ? `Reply to ${replyTo.sender}...`
+                    : "your cheap shots ... 😏"
             }
             rows={1}
             style={{ overflow: "hidden" }}
-            disabled={isGroupExpired}
+            disabled={isGroupExpired || isReadOnly}
           />
           <button
             onClick={sendMessage}
             className={`py-2 px-6 ${
-              isGroupExpired
+              isGroupExpired || isReadOnly
                 ? "bg-gray-400 cursor-not-allowed"
                 : "bg-green-600 hover:bg-green-700"
             } text-white border-2 border-black rounded transition duration-150 flex items-center justify-center`}
             disabled={
               !cleanMessage(input) ||
               !stompClient.current?.connected ||
-              isGroupExpired
+              isGroupExpired ||
+              isReadOnly
             }
             aria-label="Send Message"
           >
