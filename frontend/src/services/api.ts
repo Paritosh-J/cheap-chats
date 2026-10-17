@@ -20,7 +20,7 @@ export const createGroup = async (
   expiresInMinutes: number
 ) =>
   axios.post(`${BASE_URL}/group`, null, {
-    params: { groupName, createdBy, expiresInMinutes },
+    params: { groupName, createdBy, expiryInMinutes: expiresInMinutes },
   });
 
 export const joinGroup = async (groupName: string, username: string) =>

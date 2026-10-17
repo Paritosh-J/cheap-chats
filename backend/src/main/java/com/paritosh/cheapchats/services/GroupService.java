@@ -19,7 +19,15 @@ public interface GroupService {
     java.util.List<ChatGroup> getGroupsForUser(String username);
     
     ChatGroup getGroupByName(String groupName);
-    
+
+    double getMinutesUntilExpiry(String groupName);
+
+    long getExpiryAtEpochMillis(String groupName);
+
+    long getCreatedAtEpochMillis(String groupName);
+
+    int getExpiryDurationMinutes(String groupName);
+
     void deleteGroup(String groupName);
 
     void deleteExpiredGroups();

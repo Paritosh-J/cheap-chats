@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useChat } from "../context/ChatContext";
 import SockJS from "sockjs-client";
 import { CompatClient, Stomp } from "@stomp/stompjs";
 import type { ChatMessage } from "../types";
@@ -26,6 +27,7 @@ import {
 import ChatMessageComponent from "../components/ChatMessage";
 
 const ChatRoom: React.FC = () => {
+  const { showToast } = useChat();
   const navigate = useNavigate(); // for navigation to pages
 
   const params = useParams<{ id?: string }>();
@@ -46,12 +48,18 @@ const ChatRoom: React.FC = () => {
   const [showMemberSettings, setShowMemberSettings] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [membersList, setMembersList] = useState<string[]>([]);
+  const membershipChanges = useRef(new Map<string, "JOIN" | "LEAVE">());
   const [isNameTaken, setIsNameTaken] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
-  const [minsLeft, setMinsLeft] = useState<number>(60);
+  const [expiryAt, setExpiryAt] = useState<number | null>(null);
+  const [expiryLoadFailed, setExpiryLoadFailed] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [newExpiryTime, setNewExpiryTime] = useState(60);
   const [isGroupExpired, setIsGroupExpired] = useState(false);
+  const minsLeft =
+    expiryAt === null ? null : Math.max(0, (expiryAt - currentTime) / 60_000);
 
   // fetch persisted messages
   useEffect(() => {
@@ -90,7 +98,9 @@ const ChatRoom: React.FC = () => {
 
     // initialize SockJS and Stomp client
     // const socket = new SockJS("http://localhost:8080/ws");
-    const socket = new SockJS(`${import.meta.env.VITE_BACKEND_URL}/ws`);
+    const backendUrl =
+      import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
+    const socket = new SockJS(`${backendUrl}/ws`);
     stompClient.current = Stomp.over(socket);
 
     stompClient.current.connect(
@@ -104,6 +114,19 @@ const ChatRoom: React.FC = () => {
           (payload: { body: string }) => {
             const msg: ChatMessage = JSON.parse(payload.body);
             console.log("Received WebSocket message:", msg);
+
+            if (msg.type === "JOIN" || msg.type === "LEAVE") {
+              membershipChanges.current.set(msg.sender, msg.type);
+              setMembersList((previousMembers) => {
+                if (msg.type === "JOIN") {
+                  return previousMembers.includes(msg.sender)
+                    ? previousMembers
+                    : [...previousMembers, msg.sender];
+                }
+                return previousMembers.filter((member) => member !== msg.sender);
+              });
+              showToast(msg.content, "success");
+            }
 
             if (msg.type === "DELETE") {
               console.log("Processing DELETE message for ID:", msg.id);
@@ -170,7 +193,7 @@ const ChatRoom: React.FC = () => {
         stompClient.current.disconnect();
       }
     };
-  }, [groupName, username, navigate]);
+  }, [groupName, username, navigate, showToast]);
 
   // Focus input when window regains focus
   useEffect(() => {
@@ -187,10 +210,16 @@ const ChatRoom: React.FC = () => {
 
   // FETCH GROUP MEMBERS
   useEffect(() => {
+    membershipChanges.current.clear();
     const fetchMembers = async () => {
       try {
         const response = await getGroupInfo(groupName!);
-        setMembersList(response.data.members || []);
+        const members = new Set<string>(response.data.members || []);
+        membershipChanges.current.forEach((eventType, member) => {
+          if (eventType === "JOIN") members.add(member);
+          else members.delete(member);
+        });
+        setMembersList([...members]);
       } catch (error) {
         console.error("Failed to fetch group members:", error);
         setMembersList([]);
@@ -296,11 +325,9 @@ const ChatRoom: React.FC = () => {
       // Call backend API to delete message
       await deleteMessage(messageId.toString(), groupName!, username!);
       console.log(`Delete API call successful for message ${messageId}`);
-      // The message will be removed from UI via WebSocket notification
     } catch (error) {
       console.error("Failed to delete message:", error);
-      // Fallback: remove from local state if API call fails
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      showToast("Could not delete message", "error");
     }
   };
 
@@ -337,83 +364,130 @@ const ChatRoom: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (expiryAt === null) return;
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [expiryAt]);
+
   // expiry timer
   useEffect(() => {
+    if (
+      resolvedGroupName === "Loading..." ||
+      resolvedGroupName === "Group not found!" ||
+      !groupName ||
+      !username
+    ) {
+      return;
+    }
+
+    setExpiryAt(null);
+    setExpiryLoadFailed(false);
+    setIsGroupExpired(false);
+    let isActive = true;
     const fetchExpiryTime = async () => {
       try {
         const response = await getGroupExpiryIn(resolvedGroupName);
-        console.log("expires in:", response.data.minsLeft);
-        setMinsLeft(response.data.minsLeft);
+        if (!isActive) return;
 
-        if (response.data.minsLeft <= 0) {
-          setIsGroupExpired(true);
+        const createdAt = Number(response.data.createdAtEpochMillis);
+        const expiryDuration = Number(response.data.expiryDurationMinutes);
+        const deadline = createdAt + expiryDuration * 60_000;
+        if (
+          !Number.isFinite(createdAt) ||
+          !Number.isFinite(expiryDuration) ||
+          expiryDuration <= 0 ||
+          !Number.isFinite(deadline)
+        ) {
+          throw new Error("Backend returned invalid group creation or expiry data");
         }
-      } catch (err) {
-        console.error("Failed to fetch expiry time:", err);
-      }
-    };
+        setExpiryLoadFailed(false);
+        setExpiryAt(deadline);
+        setCurrentTime(Date.now());
 
-    if (resolvedGroupName !== "Loading...") fetchExpiryTime();
-
-    // update timer every second
-    const timer = setInterval(() => {
-      setMinsLeft((prev) => {
-        const newMinutes = prev - 1 / 60;
-
-        if (newMinutes <= 0) {
-          clearInterval(timer);
+        if (response.data.isExpired || deadline <= Date.now()) {
           setIsGroupExpired(true);
-
-          // auto delete group
-          if (groupName) {
-            deleteGroup(groupName, username!)
-              .then(() => {
-                alert("Group expired!");
-                console.log("group auto-deleted due to expiration");
-              })
-              .catch((error) => {
-                console.error("Failed to auto-delete expired group", error);
-              });
-          }
-
-          // disconnect websocket
+          deleteGroup(groupName, username).catch((error) => {
+            console.error("Failed to delete expired group", error);
+          });
           if (stompClient.current?.connected) {
             stompClient.current.disconnect();
           }
-
-          // navigate("/group"); // Redirect when expired
-          return 0;
+          return;
         }
 
-        return newMinutes;
-      });
-    }, 1000);
+        setIsGroupExpired(false);
+      } catch (err) {
+        console.error("Failed to fetch expiry time:", err);
+        if (isActive) setExpiryLoadFailed(true);
+      }
+    };
 
-    return () => clearInterval(timer);
-  }, [stompClient]);
+    void fetchExpiryTime();
+
+    return () => {
+      isActive = false;
+    };
+  }, [resolvedGroupName, groupName, username]);
+
+  useEffect(() => {
+    if (expiryAt === null || minsLeft !== 0 || isGroupExpired) return;
+    setIsGroupExpired(true);
+    deleteGroup(groupName!, username!).catch((error) => {
+      console.error("Failed to delete expired group", error);
+    });
+    if (stompClient.current?.connected) {
+      stompClient.current.disconnect();
+    }
+  }, [expiryAt, minsLeft, isGroupExpired, groupName, username]);
 
   // UPDATE GROUP
   const handleUpdateGroup = async () => {
+    if (newExpiryTime <= 0) {
+      alert("Expiry time must be greater than zero.");
+      return;
+    }
+
+    setIsUpdatingSettings(true);
     try {
-      // update group settings
-      await updateGroupSettings(groupName!, {
-        newGroupName: newGroupName,
+      const requestedGroupName = newGroupName.trim();
+      const settings = {
+        newGroupName: requestedGroupName || groupName!,
         newExpiryMinutes: newExpiryTime,
-      });
+      };
+      const updateResponse = await updateGroupSettings(groupName!, settings);
+      if (!updateResponse.data.updated) {
+        throw new Error("The backend did not apply the group settings.");
+      }
+      showToast("Group settings updated", "success");
 
       // update local state
-      if (newGroupName) {
-        setResolvedGroupName(newGroupName);
-        navigate(`/group/${newGroupName}`);
+      const updatedGroupName = requestedGroupName || groupName!;
+      if (updatedGroupName !== groupName) {
+        setResolvedGroupName(updatedGroupName);
+        navigate(`/group/${updatedGroupName}`);
       }
 
       setShowGroupSettings(false);
 
       // Refresh expiry time
-      const response = await getGroupExpiryIn(newGroupName || groupName!);
-      if (response.data.minsLeft) {
-        setMinsLeft(response.data.minsLeft);
+      const response = await getGroupExpiryIn(updatedGroupName);
+      const createdAt = Number(response.data.createdAtEpochMillis);
+      const expiryDuration = Number(response.data.expiryDurationMinutes);
+      const deadline = createdAt + expiryDuration * 60_000;
+      if (
+        !Number.isFinite(createdAt) ||
+        !Number.isFinite(expiryDuration) ||
+        expiryDuration <= 0 ||
+        !Number.isFinite(deadline)
+      ) {
+        throw new Error("Backend returned invalid group creation or expiry data");
       }
+      setExpiryLoadFailed(false);
+      setExpiryAt(deadline);
+      setCurrentTime(Date.now());
+      setIsGroupExpired(response.data.isExpired || deadline <= Date.now());
+      setNewGroupName("");
     } catch (error) {
       // group already exists
       if (
@@ -428,6 +502,9 @@ const ChatRoom: React.FC = () => {
       }
 
       console.error("Failed to update group settings:", error);
+      showToast("Could not update group settings", "error");
+    } finally {
+      setIsUpdatingSettings(false);
     }
   };
 
@@ -453,8 +530,10 @@ const ChatRoom: React.FC = () => {
   const handleDeleteGroup = async () => {
     try {
       await deleteGroup(groupName!, username!);
+      showToast("Group deleted", "success");
       navigate("/group"); // or navigate to group list page
     } catch (error) {
+      showToast("Could not delete group", "error");
       alert("Failed to delete group. You may not have permission.");
     }
   };
@@ -467,8 +546,10 @@ const ChatRoom: React.FC = () => {
       setMembersList((prev) =>
         prev.filter((member) => member !== targetMember)
       );
+      membershipChanges.current.set(targetMember, "LEAVE");
     } catch (error) {
       console.error("Failed to remove member:", error);
+      showToast(`Could not remove ${targetMember}`, "error");
       alert("Failed to remove member");
     }
   };
@@ -498,6 +579,7 @@ const ChatRoom: React.FC = () => {
       <div className="flex items-center justify-between border border-black p-2 bg-white text-black rounded">
         {/* Back button */}
         <button
+          id="back-button"
           onClick={() => {
             navigate("/group");
           }}
@@ -517,7 +599,12 @@ const ChatRoom: React.FC = () => {
           </h2>
           <div className="ml-3 flex items-center bg-gray-100 px-3 py-1 rounded-full border border-gray-300 timer-pulse">
             <span className="font-bold text-gray-600">
-              ⏳ {formattedTimeLeft(minsLeft)}
+              ⏳
+              {minsLeft !== null
+                ? ` ${formattedTimeLeft(minsLeft)}`
+                : expiryLoadFailed
+                  ? " Timer unavailable - restart backend"
+                  : " Loading..."}
             </span>
           </div>
         </div>
@@ -525,6 +612,7 @@ const ChatRoom: React.FC = () => {
         <div className="flex items-center gap-2">
           {/* Group settings button */}
           <button
+            id="group-settings-button"
             onClick={() => {
               setShowGroupSettings(true);
             }}
@@ -536,6 +624,7 @@ const ChatRoom: React.FC = () => {
 
           {/* Group members settings button */}
           <button
+            id="group-members-button"
             onClick={() => setShowMemberSettings(true)}
             className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-blue"
             title="Members settings"
@@ -546,6 +635,7 @@ const ChatRoom: React.FC = () => {
           {isAdmin && (
             // Delete group button
             <button
+              id="delete-group-button"
               onClick={() => setShowDeleteConfirm(true)}
               className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
               title="Delete message"
@@ -556,6 +646,7 @@ const ChatRoom: React.FC = () => {
 
           {/* Logout button */}
           <button
+            id="logout-button"
             onClick={() => {
               localStorage.removeItem("username");
               navigate("/");
@@ -606,12 +697,16 @@ const ChatRoom: React.FC = () => {
 
             <div className="mb-4">
               <label className="block text-sm font-medium mb-1">
-                Extend Expiry (default 60 minutes)
+                Expiry duration from creation (minutes)
               </label>
               <input
                 type="number"
                 value={newExpiryTime}
-                onChange={(e) => setNewExpiryTime(parseInt(e.target.value))}
+                onChange={(e) =>
+                  setNewExpiryTime(
+                    e.target.value === "" ? 0 : Number(e.target.value),
+                  )
+                }
                 min="1"
                 className="w-full p-2 border rounded"
               />
@@ -619,19 +714,27 @@ const ChatRoom: React.FC = () => {
 
             <div className="flex justify-center gap-2">
               <button
+                id="update-group-button"
                 onClick={handleUpdateGroup}
                 disabled={
-                  isNameTaken || isChecking || (!newGroupName && !newExpiryTime)
+                  isUpdatingSettings ||
+                  isNameTaken ||
+                  isChecking ||
+                  (!newGroupName.trim() && newExpiryTime <= 0)
                 }
                 className={`flex-1 px-3 py-1 ${
-                  isNameTaken || isChecking || (!newGroupName && !newExpiryTime)
+                  isUpdatingSettings ||
+                  isNameTaken ||
+                  isChecking ||
+                  (!newGroupName.trim() && newExpiryTime <= 0)
                     ? "bg-gray-400 cursor-not-allowed"
                     : "bg-blue-500 hover:bg-blue-600 hover:scale-110"
                 } text-white rounded transition-all duration-200 cursor-pointer border border-black`}
               >
-                Update
+                {isUpdatingSettings ? "Updating..." : "Update"}
               </button>
               <button
+                id="cancel-group-settings-button"
                 onClick={() => {
                   setShowGroupSettings(false);
                   focusInput();
@@ -645,6 +748,7 @@ const ChatRoom: React.FC = () => {
             {/* Back button */}
             <div className="flex justify-center mt-4">
               <button
+                id="back-to-chat-screen-from-group-settings-button"
                 onClick={() => {
                   setShowGroupSettings(false);
                   focusInput();
@@ -675,6 +779,7 @@ const ChatRoom: React.FC = () => {
                   <span className="text-lg">{member}</span>
                   {member !== username && (
                     <button
+                      id="remove-member-button"
                       className="ml-2 px-1 py-1 bg-red-100 rounded-full transition-all duration-200 hover:bg-red-200 hover:scale-110 text-red-600 rounded text-sm cursor-pointer border border-red"
                       onClick={() => handleRemoveMember(member)}
                       title="Remove member"
@@ -689,6 +794,7 @@ const ChatRoom: React.FC = () => {
             {/* Back button */}
             <div className="flex justify-center mt-4">
               <button
+                id="back-to-chat-screen-from-members-button"
                 onClick={() => {
                   setShowMemberSettings(false);
                   focusInput();
@@ -708,7 +814,7 @@ const ChatRoom: React.FC = () => {
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-xs bg-opacity-40 z-50 ">
           <div className="bg-white p-6 rounded shadow-lg max-w-xs w-full">
             <h3 className="text-lg font-bold mb-2 text-red-600 text-center">
-              Delete Group !?
+              Delete Group ??
             </h3>
             <p className="mb-4 text-gray-700 text-center">
               Sure you want to delete this group ? <br /> This action{" "}
@@ -718,6 +824,7 @@ const ChatRoom: React.FC = () => {
             </p>
             <div className="flex justify-center gap-2">
               <button
+                id="cancel-delete-group-button"
                 className="flex-1 px-3 py-1 bg-gray-200 rounded transition-all duration-200 hover:scale-110 hover:bg-gray-300 cursor-pointer border border-black"
                 onClick={() => {
                   setShowDeleteConfirm(false);
@@ -727,6 +834,7 @@ const ChatRoom: React.FC = () => {
                 Cancel
               </button>
               <button
+                id="confirm-delete-group-button"
                 className="flex-1 px-3 py-1 bg-red-600 text-white rounded transition-all duration-200 hover:scale-110 hover:bg-red-700 cursor-pointer border border-black"
                 onClick={handleDeleteGroup}
               >
@@ -768,6 +876,7 @@ const ChatRoom: React.FC = () => {
               {replyTo.content.length > 50 ? "..." : ""}
             </div>
             <button
+              id="cancel-reply-button"
               onClick={cancelReply}
               className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
               title="Close Groups"
@@ -780,9 +889,13 @@ const ChatRoom: React.FC = () => {
 
       {/* Message input field */}
       <div className="flex flex-col" style={{ position: "relative" }}>
+        <p className="mb-1 text-center text-[11px] font-light text-gray-600">
+          This group will <span>vanish from "My Groups"</span> once timer expires!
+        </p>
         {/* Scroll to Bottom Button - bottom right above send button */}
         {showScrollToBottom && (
           <button
+            id="scroll-to-bottom-button"
             onClick={scrollToBottom}
             className="fixed md:absolute right-15 md:right-4 bottom-17 p-2 bg-black text-white rounded-full shadow-lg border-2 border-white  hover:bg-white hover:text-black hover:border-1 hover:border-black transition z-20 hover:scale-110 cursor-pointer"
             style={{
@@ -796,6 +909,7 @@ const ChatRoom: React.FC = () => {
         )}
         <div className="flex">
           <textarea
+            id="message-input"
             ref={inputRef}
             value={input}
             onChange={handleInputChange}

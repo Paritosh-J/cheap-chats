@@ -2,6 +2,7 @@ package com.paritosh.cheapchats.models;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -20,6 +21,8 @@ public class ChatGroup {
     private String groupName;
     private String createdBy;
     private String expiresIn;
+    private LocalDateTime createdAt;
+    private LocalDateTime expiresAt;
     private boolean isExpired;
 
     @ElementCollection
