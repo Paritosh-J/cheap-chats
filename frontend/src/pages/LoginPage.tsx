@@ -5,6 +5,7 @@ import { loginUser } from "../services/api";
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -17,12 +18,16 @@ const LoginPage: React.FC = () => {
   }, [navigate]);
 
   const handleLogin = async () => {
+    if (isLoggingIn) return;
+
     // if username is empty
     if (!username.trim()) {
       setError("Username cannot be empty");
       return;
     }
 
+    setIsLoggingIn(true);
+    setError("");
     try {
       // call the loginUser function from api service
       const response = await loginUser(username);
@@ -36,6 +41,8 @@ const LoginPage: React.FC = () => {
       }
     } catch (err) {
       setError("An error occurred. Please try again.");
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -61,10 +68,21 @@ const LoginPage: React.FC = () => {
         )}
         <button
           type="submit"
-          className="w-full text-xl text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:outline-none focus:ring-primary-300 font-bold rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
+          className="w-full rounded-lg bg-green-600 px-5 py-2.5 text-center text-sm font-bold text-white hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-primary-300 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
           onClick={handleLogin}
+          disabled={isLoggingIn}
         >
-          Get In!
+          {isLoggingIn ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <span
+                className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                aria-hidden="true"
+              />
+              Pushing you in...
+            </span>
+          ) : (
+            "Get In!"
+          )}
         </button>
       </div>
     </div>
