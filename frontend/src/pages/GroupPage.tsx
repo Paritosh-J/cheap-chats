@@ -4,8 +4,11 @@ import { createGroup, joinGroup, getUserGroups } from "../services/api";
 import { BsArrowRight, BsBoxArrowRight, BsX } from "react-icons/bs";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import type { ChatGroup } from "../types";
+import { useChat } from "../context/ChatContext";
+import axios from "axios";
 
 const GroupPage: React.FC = () => {
+  const { showToast } = useChat();
   const [groupName, setGroupName] = useState("");
   const [expiry, setExpiry] = useState(60); // default expiry time in minutes
   const [error, setError] = useState("");
@@ -37,6 +40,7 @@ const GroupPage: React.FC = () => {
       const response = await createGroup(groupName.trim(), username!, expiry);
 
       if (response.status === 200) {
+        showToast(`Group "${response.data.groupName}" created`, "success");
         // set flag to indicate just joined
         sessionStorage.setItem("justJoinedGroup", "true");
         // redirect to newly created group
@@ -44,15 +48,17 @@ const GroupPage: React.FC = () => {
       } else {
         setError("Failed to create group. Please try again.");
       }
-    } catch (err: any) {
-      if (err.response && err.response.status === 409) {
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
         // if group already exists
         setError(
           "Group with this name already exists. Please choose a different name."
         );
+        showToast("That group name is already taken", "error");
       } else {
         // for any other error
         setError("An error occurred while creating the group.");
+        showToast("Could not create group", "error");
       }
     }
   };
@@ -71,6 +77,7 @@ const GroupPage: React.FC = () => {
       const response = await joinGroup(groupName.trim(), username!);
 
       if (response.status === 200) {
+        showToast(`Joined "${response.data.groupName}"`, "success");
         // set flag to indicate just joined
         sessionStorage.setItem("justJoinedGroup", "true");
         // redirect to the group chat room
@@ -78,8 +85,9 @@ const GroupPage: React.FC = () => {
       } else {
         setError("Failed to join group. Please check the Group ID.");
       }
-    } catch (err) {
+    } catch {
       setError("An error occurred while joining the group.");
+      showToast("Could not join group. Check the group name and try again.", "error");
     }
   };
 
@@ -90,8 +98,9 @@ const GroupPage: React.FC = () => {
       const response = await getUserGroups(username!);
       setMyGroups(response.data);
       setShowGroups(true);
-    } catch (err) {
+    } catch {
       setError("Failed to fetch your groups.");
+      showToast("Could not load your groups", "error");
     } finally {
       setLoadingGroups(false);
     }

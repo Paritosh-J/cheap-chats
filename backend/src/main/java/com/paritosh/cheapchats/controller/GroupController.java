@@ -3,11 +3,13 @@ package com.paritosh.cheapchats.controller;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.LocalDateTime;
 
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.paritosh.cheapchats.models.ChatGroup;
 import com.paritosh.cheapchats.models.User;
+import com.paritosh.cheapchats.dto.ChatMessageDto;
 import com.paritosh.cheapchats.repositories.ChatGroupRepository;
 import com.paritosh.cheapchats.repositories.UserRepository;
 import com.paritosh.cheapchats.services.GroupService;
@@ -30,8 +33,8 @@ import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api")
-// @CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true") // Allow all origins for CORS
-@CrossOrigin(origins = "https://cheap-chats.vercel.app", allowCredentials = "true") // Allow all origins for CORS
+@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true") // Allow all origins for CORS
+//@CrossOrigin(origins = "https://cheap-chats.vercel.app", allowCredentials = "true") // Allow all origins for CORS
 // This allows the frontend to communicate with the backend without CORS issues
 @Slf4j
 public class GroupController {
@@ -44,6 +47,9 @@ public class GroupController {
 
     @Autowired
     private ChatGroupRepository chatGroupRepository;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     // LOGIN
     @PostMapping("/login")
@@ -103,27 +109,25 @@ public class GroupController {
     // GET GROUP EXPIRY TIME
     @GetMapping("/group/{groupName}/expiresIn")
     public ResponseEntity<Map<String, Object>> getGroupExpiryIn(@PathVariable String groupName) {
-
-        log.info("inside controller getGroupExpiryIn");
-
         try {
             ChatGroup group = groupService.getGroupByName(groupName);
-            Integer minsLeft = Integer.valueOf(group.getExpiresIn());
-            boolean isExpired = group.isExpired();
-
-            log.info("fetched expiry mins: {}", minsLeft);
+            if (group == null) {
+                return ResponseEntity.notFound().build();
+            }
+            double minsLeft = groupService.getMinutesUntilExpiry(groupName);
+            boolean isExpired = group.isExpired() || minsLeft <= 0;
 
             return ResponseEntity.ok(Map.of(
                     "minsLeft", minsLeft,
+                    "createdAtEpochMillis", groupService.getCreatedAtEpochMillis(groupName),
+                    "expiryDurationMinutes", groupService.getExpiryDurationMinutes(groupName),
+                    "expiresAtEpochMillis", groupService.getExpiryAtEpochMillis(groupName),
                     "isExpired", isExpired
             ));
-
-        } catch (NumberFormatException e) {
-            log.error("Error getting group expiry time: {}", e.getMessage());
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", -1));
+        } catch (IllegalStateException e) {
+            log.error("Error getting group expiry time for {}: {}", groupName, e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
-
     }
 
     // JOIN GROUP
@@ -176,15 +180,21 @@ public class GroupController {
 
     // UPDATE GROUP SETTINGS
     @PutMapping("/group/{groupName}/settings")
-    public Map<String, String> updateGroupInfo(@PathVariable String groupName, @RequestBody String jsonBody) throws Exception {
+    public Map<String, Object> updateGroupInfo(@PathVariable String groupName, @RequestBody String jsonBody) throws Exception {
 
         log.info("inside controller updateGroupInfo");
 
         JSONObject groupSettingsJson = new JSONObject(jsonBody);
 
-        boolean success = groupService.updateGroupInfo(groupName.trim(), groupSettingsJson.getString("newGroupName"), groupSettingsJson.getInt("newExpiryMinutes"));
+        String newGroupName = groupSettingsJson.optString("newGroupName", "");
+        Integer newExpiryMinutes = groupSettingsJson.has("newExpiryMinutes")
+                && !groupSettingsJson.isNull("newExpiryMinutes")
+                ? groupSettingsJson.getInt("newExpiryMinutes")
+                : null;
+        boolean success = groupService.updateGroupInfo(
+                groupName.trim(), newGroupName, newExpiryMinutes);
 
-        return Map.of("updated", String.valueOf(success));
+        return Map.of("updated", success);
     }
 
     // REMOVE MEMBER
@@ -194,9 +204,17 @@ public class GroupController {
             @RequestParam String targetMember
     ) {
 
-        log.info("inside controller removeMember");
-
+        ChatGroup group = groupService.getGroupByName(groupName);
+        boolean wasMember = group != null && group.getMembers().contains(targetMember);
         groupService.removeMember(groupName, targetMember);
+        if (wasMember) {
+            ChatMessageDto leaveMessage = new ChatMessageDto();
+            leaveMessage.setSender(targetMember);
+            leaveMessage.setContent(targetMember + " was removed from the group");
+            leaveMessage.setTimestamp(LocalDateTime.now().toString());
+            leaveMessage.setType("LEAVE");
+            messagingTemplate.convertAndSend("/topic/group/" + groupName, leaveMessage);
+        }
 
         return ResponseEntity.ok(Map.of("removed", true));
 

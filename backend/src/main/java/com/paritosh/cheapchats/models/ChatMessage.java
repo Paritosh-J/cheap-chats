@@ -19,4 +19,7 @@ public class ChatMessage {
     private String content;
     private LocalDateTime timestamp;
     private String type; // JOIN, LEAVE, CHAT
-} 
+    private String replyToSender;
+    private String replyToContent;
+    private String replyToTimestamp;
+}

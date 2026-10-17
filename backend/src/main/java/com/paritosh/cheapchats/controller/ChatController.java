@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.paritosh.cheapchats.dto.ChatMessageDto;
 import com.paritosh.cheapchats.models.ChatMessage;
+import com.paritosh.cheapchats.models.ChatGroup;
+import com.paritosh.cheapchats.repositories.ChatGroupRepository;
 import com.paritosh.cheapchats.repositories.ChatMessageRepository;
 
 import lombok.extern.slf4j.Slf4j;
@@ -34,10 +36,15 @@ public class ChatController {
     private final SimpMessagingTemplate messagingTemplate;
     @Autowired
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatGroupRepository chatGroupRepository;
 
-    public ChatController(SimpMessagingTemplate messagingTemplate, ChatMessageRepository chatMessageRepository) {
+    public ChatController(
+            SimpMessagingTemplate messagingTemplate,
+            ChatMessageRepository chatMessageRepository,
+            ChatGroupRepository chatGroupRepository) {
         this.messagingTemplate = messagingTemplate;
         this.chatMessageRepository = chatMessageRepository;
+        this.chatGroupRepository = chatGroupRepository;
     }
 
     // Broadcast the message to all subscribers of the group and persist it
@@ -54,6 +61,13 @@ public class ChatController {
             entity.setContent(messageDto.getContent());
             entity.setTimestamp(LocalDateTime.parse(messageDto.getTimestamp()));
             entity.setType(messageDto.getType());
+            if (messageDto.getReplyTo() != null) {
+                entity.setReplyToSender(messageDto.getReplyTo().getSender());
+                entity.setReplyToContent(messageDto.getReplyTo().getContent());
+                entity.setReplyToTimestamp(messageDto.getReplyTo().getTimestamp());
+            }
+
+            updateGroupMembers(groupName, messageDto);
 
             // Save message to database
             ChatMessage savedEntity = chatMessageRepository.save(entity);
@@ -117,8 +131,33 @@ public class ChatController {
                     dto.setContent(entity.getContent());
                     dto.setTimestamp(entity.getTimestamp().toString());
                     dto.setType(entity.getType());
+                    if (entity.getReplyToSender() != null) {
+                        ChatMessageDto.ReplyPreviewDto replyTo =
+                                new ChatMessageDto.ReplyPreviewDto();
+                        replyTo.setSender(entity.getReplyToSender());
+                        replyTo.setContent(entity.getReplyToContent());
+                        replyTo.setTimestamp(entity.getReplyToTimestamp());
+                        dto.setReplyTo(replyTo);
+                    }
                     return dto;
                 })
                 .collect(Collectors.toList());
+    }
+
+    private void updateGroupMembers(String groupName, ChatMessageDto messageDto) {
+        if (!"JOIN".equals(messageDto.getType()) && !"LEAVE".equals(messageDto.getType())) {
+            return;
+        }
+
+        chatGroupRepository.findById(groupName).ifPresent(group -> {
+            if ("JOIN".equals(messageDto.getType())) {
+                if (!group.getMembers().contains(messageDto.getSender())) {
+                    group.getMembers().add(messageDto.getSender());
+                }
+            } else {
+                group.getMembers().remove(messageDto.getSender());
+            }
+            chatGroupRepository.save(group);
+        });
     }
 }

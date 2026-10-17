@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { BsTrash, BsReply, BsCopy } from "react-icons/bs";
 import type { ChatMessageProps } from "../types";
+import { useChat } from "../context/ChatContext";
 
 const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   message,
@@ -8,19 +9,23 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   onDelete,
   onReply,
 }) => {
+  const { showToast } = useChat();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(message.content);
-      // You could add a toast notification here
-      console.log("Message copied to clipboard");
+      showToast("Message copied", "success");
     } catch (err) {
       console.error("Failed to copy message:", err);
+      showToast("Could not copy message", "error");
     }
   };
 
   const handleDelete = () => {
-    if (onDelete && message.id) {
+    if (onDelete && message.id !== undefined) {
       onDelete(message.id);
+      setConfirmingDelete(false);
     }
   };
 
@@ -51,13 +56,12 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             boxShadow: "0 4px 24px 0 rgba(31, 38, 135, 0.10)",
           }}
         >
-          {/* Reply Preview Banner */}
           {message.replyTo && (
-            <div className="mb-2 p-1.5 -mt-1 -mx-2 bg-black/10 rounded text-xs border-l-2 border-gray-400">
-              <div className="font-semibold text-black/70">
-                {message.replyTo.sender}
+            <div className="mb-2 -mx-2 -mt-1 rounded border-l-4 border-indigo-500 bg-indigo-50 px-2 py-1.5 text-xs">
+              <div className="font-semibold text-indigo-900">
+                In reply to {message.replyTo.sender}
               </div>
-              <div className="text-black/60 truncate">
+              <div className="truncate text-gray-700">
                 {message.replyTo.content.substring(0, 50)}
                 {message.replyTo.content.length > 50 ? "..." : ""}
               </div>
@@ -104,9 +108,10 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 
         {/* Action Buttons */}
         {message.type === "CHAT" && (
-          <div className="flex gap-1 mt-1">
+          <div className="relative flex gap-1 mt-1">
             {/* reply button */}
             <button
+              id="reply-button"
               onClick={handleReply}
               className="p-1.5 bg-gray-100 hover:bg-gray-200 border border-black/50 rounded-full transition-colors duration-150 cursor-pointer"
               title="Reply to message"
@@ -117,7 +122,8 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             {/* delete button */}
             {isOwnMessage && (
               <button
-                onClick={handleDelete}
+                id="delete-button"
+                onClick={() => setConfirmingDelete((confirming) => !confirming)}
                 className="p-1.5 bg-red-100 hover:bg-red-200 border border-red-500 rounded-full transition-colors duration-150 cursor-pointer"
                 title="Delete message"
               >
@@ -125,8 +131,35 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
               </button>
             )}
 
+            {isOwnMessage && confirmingDelete && (
+              <div
+                role="alertdialog"
+                aria-label="Confirm message deletion"
+                className="absolute right-20 bottom-full z-10 mb-2 w-48 rounded-lg border border-red-300 bg-white p-3 text-left text-xs text-gray-800 shadow-lg"
+              >
+                <p className="mb-2 font-medium">Delete this message?</p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(false)}
+                    className="rounded px-2 py-1 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className="rounded bg-red-600 px-2 py-1 text-white hover:bg-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* copy button */}
             <button
+              id="copy-button"
               onClick={handleCopy}
               className="p-1.5 bg-gray-100 hover:bg-gray-200 border border-black/50 rounded-full transition-colors duration-150 cursor-pointer"
               title="Copy message"

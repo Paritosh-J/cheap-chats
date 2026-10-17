@@ -3,6 +3,10 @@ package com.paritosh.cheapchats.services.impl;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Objects;
 
 import com.paritosh.cheapchats.utils.ChatGroupUtility;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +44,9 @@ public class GroupServiceImpl implements GroupService {
         chatGroup.setGroupName(groupName);
         chatGroup.setCreatedBy(createdBy);
         chatGroup.setExpiresIn(String.valueOf(validMinutes));
+        LocalDateTime createdAt = LocalDateTime.now();
+        chatGroup.setCreatedAt(createdAt);
+        chatGroup.setExpiresAt(createdAt.plusMinutes(validMinutes));
         chatGroup.setExpired(false);
         chatGroup.getMembers().add(createdBy);
 
@@ -118,18 +125,32 @@ public class GroupServiceImpl implements GroupService {
         ChatGroup oldGroup = chatGroupRepository.findById(groupName)
                 .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupName));
 
-        // Check if the group exists
-        if (!newGroupName.equals(groupName)) {
+        String requestedGroupName = newGroupName == null ? "" : newGroupName.trim();
+        boolean renameGroup = !requestedGroupName.isEmpty()
+                && !requestedGroupName.equals(groupName);
 
-            ChatGroupUtility.validateGroupName(newGroupName, chatGroupRepository);
+        if (newExpiryInMins != null && newExpiryInMins <= 0) {
+            throw new IllegalArgumentException("Expiry time must be positive.");
+        }
+
+        if (renameGroup) {
+
+            ChatGroupUtility.validateGroupName(requestedGroupName, chatGroupRepository);
+
+            LocalDateTime currentExpiry = getExpiryDate(oldGroup);
 
             // Create new group with updated name
             ChatGroup newGroup = new ChatGroup();
-            newGroup.setGroupName(newGroupName);
+            newGroup.setGroupName(requestedGroupName);
             newGroup.setCreatedBy(oldGroup.getCreatedBy());
             newGroup.setMembers(new ArrayList<>(oldGroup.getMembers()));
-            newGroup.setExpired(false);
+            newGroup.setExpired(oldGroup.isExpired());
+            LocalDateTime createdAt = getCreationDate(oldGroup);
+            newGroup.setCreatedAt(createdAt);
             newGroup.setExpiresIn(newExpiryInMins != null ? String.valueOf(newExpiryInMins) : oldGroup.getExpiresIn());
+            newGroup.setExpiresAt(newExpiryInMins != null
+                    ? createdAt.plusMinutes(newExpiryInMins)
+                    : currentExpiry);
 
             // Save new group
             chatGroupRepository.save(newGroup);
@@ -137,39 +158,30 @@ public class GroupServiceImpl implements GroupService {
             // Update messages to point to new group
             List<ChatMessage> messages = chatMessageRepository.findByGroupNameOrderByTimestampAsc(groupName);
             for (ChatMessage message : messages) {
-                message.setGroupName(newGroupName);
+                message.setGroupName(requestedGroupName);
             }
             chatMessageRepository.saveAll(messages);
 
             // Delete old group
             chatGroupRepository.delete(oldGroup);
 
-            log.info("Group successfully renamed from {} to {}", groupName, newGroupName);
+            log.info("Group successfully renamed from {} to {}", groupName, requestedGroupName);
 
             // name updation successfully
             return true;
 
         } else if (newExpiryInMins != null) {
-
-            if (newExpiryInMins <= 0) {
-                throw new IllegalArgumentException("Expiry time must be positive.");
-            }
-
-            // Only update expiry time
+            LocalDateTime createdAt = getCreationDate(oldGroup);
             oldGroup.setExpiresIn(String.valueOf(newExpiryInMins));
+            oldGroup.setCreatedAt(createdAt);
+            oldGroup.setExpiresAt(createdAt.plusMinutes(newExpiryInMins));
 
-            // save changes
             chatGroupRepository.save(oldGroup);
 
             log.info("Updated expiry time for group {}", groupName);
-
-            // expiry time updation successfully
             return true;
         }
 
-        log.warn("group {} already exists", groupName);
-
-        // group already exists
         return false;
     }
 
@@ -195,6 +207,99 @@ public class GroupServiceImpl implements GroupService {
     @Override
     public ChatGroup getGroupByName(String groupName) {
         return chatGroupRepository.findById(groupName).orElse(null);
+    }
+
+    @Override
+    public double getMinutesUntilExpiry(String groupName) {
+        ChatGroup group = chatGroupRepository.findById(groupName)
+                .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupName));
+
+        LocalDateTime expiryDate = getExpiryDate(group);
+        double minutesLeft = Duration.between(LocalDateTime.now(), expiryDate).toMillis() / 60_000.0;
+        return Math.max(0, minutesLeft);
+    }
+
+    @Override
+    public long getExpiryAtEpochMillis(String groupName) {
+        ChatGroup group = chatGroupRepository.findById(groupName)
+                .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupName));
+        return getExpiryDate(group)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+    }
+
+    @Override
+    public long getCreatedAtEpochMillis(String groupName) {
+        ChatGroup group = chatGroupRepository.findById(groupName)
+                .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupName));
+        getExpiryDate(group);
+        return group.getCreatedAt()
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+    }
+
+    @Override
+    public int getExpiryDurationMinutes(String groupName) {
+        ChatGroup group = chatGroupRepository.findById(groupName)
+                .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupName));
+        return getExpiryMinutes(group);
+    }
+
+    private LocalDateTime getExpiryDate(ChatGroup group) {
+        int expiryMinutes = getExpiryMinutes(group);
+        boolean creationDateMissing = group.getCreatedAt() == null;
+        LocalDateTime createdAt = resolveCreationDate(group, expiryMinutes);
+        LocalDateTime expiryDate = createdAt.plusMinutes(expiryMinutes);
+
+        if (creationDateMissing || !Objects.equals(expiryDate, group.getExpiresAt())) {
+            group.setCreatedAt(createdAt);
+            group.setExpiresAt(expiryDate);
+            chatGroupRepository.save(group);
+        }
+        return expiryDate;
+    }
+
+    private LocalDateTime getCreationDate(ChatGroup group) {
+        return resolveCreationDate(group, getExpiryMinutes(group));
+    }
+
+    private LocalDateTime resolveCreationDate(ChatGroup group, int expiryMinutes) {
+        if (group.getCreatedAt() != null) {
+            return group.getCreatedAt();
+        }
+
+        LocalDateTime firstMessageTime = chatMessageRepository
+                .findByGroupNameOrderByTimestampAsc(group.getGroupName())
+                .stream()
+                .map(ChatMessage::getTimestamp)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+
+        if (firstMessageTime != null) {
+            return firstMessageTime;
+        }
+
+        if (group.getExpiresAt() != null) {
+            return group.getExpiresAt().minusMinutes(expiryMinutes);
+        }
+
+        return LocalDateTime.now();
+    }
+
+    private int getExpiryMinutes(ChatGroup group) {
+        try {
+            int expiryMinutes = Integer.parseInt(group.getExpiresIn());
+            if (expiryMinutes <= 0) {
+                throw new NumberFormatException("Expiry duration must be positive");
+            }
+            return expiryMinutes;
+        } catch (NumberFormatException e) {
+            throw new IllegalStateException(
+                    "Invalid expiry duration for group " + group.getGroupName(), e);
+        }
     }
 
     @Override
