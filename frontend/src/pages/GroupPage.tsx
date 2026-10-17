@@ -12,6 +12,7 @@ const GroupPage: React.FC = () => {
   const [groupName, setGroupName] = useState("");
   const [expiry, setExpiry] = useState(60); // default expiry time in minutes
   const [error, setError] = useState("");
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const navigate = useNavigate();
   const [myGroups, setMyGroups] = useState<ChatGroup[]>([]);
   const [showGroups, setShowGroups] = useState(false);
@@ -28,6 +29,8 @@ const GroupPage: React.FC = () => {
 
   // CREATE GROUP
   const handleCreate = async () => {
+    if (isCreatingGroup) return;
+
     // if group name is empty
     if (!groupName.trim()) {
       // set error message
@@ -35,6 +38,8 @@ const GroupPage: React.FC = () => {
       return;
     }
 
+    setIsCreatingGroup(true);
+    setError("");
     try {
       // call createGroup function from api service
       const response = await createGroup(groupName.trim(), username!, expiry);
@@ -58,6 +63,8 @@ const GroupPage: React.FC = () => {
         setError("An error occurred while creating the group.");
         showToast("Could not create group", "error");
       }
+    } finally {
+      setIsCreatingGroup(false);
     }
   };
 
@@ -153,11 +160,26 @@ const GroupPage: React.FC = () => {
           <button
             id="create-group-button"
             onClick={handleCreate}
-            className="w-full bg-green-500 text-white font-bold py-2 rounded hover:bg-green-600 transition-all cursor-pointer"
+            disabled={isCreatingGroup}
+            className="w-full rounded bg-green-500 py-2 font-bold text-white transition-all hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            <span className="drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
-              Create Group
-            </span>
+            {isCreatingGroup ? (
+              <span
+                className="inline-flex items-center justify-center gap-2"
+                role="status"
+                aria-live="polite"
+              >
+                <span
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                  aria-hidden="true"
+                />
+                Cooking...
+              </span>
+            ) : (
+              <span className="drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
+                Create Group
+              </span>
+            )}
           </button>
 
           {/* My Groups Button */}
