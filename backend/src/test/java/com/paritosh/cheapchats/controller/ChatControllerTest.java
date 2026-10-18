@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -65,7 +66,7 @@ class ChatControllerTest {
             return saved;
         });
 
-        chatController.sendMessage("room", message);
+        chatController.sendMessage("room", message, principal("alice"));
 
         ArgumentCaptor<ChatMessage> entityCaptor = ArgumentCaptor.forClass(ChatMessage.class);
         verify(chatMessageRepository).save(entityCaptor.capture());
@@ -89,12 +90,29 @@ class ChatControllerTest {
         join.setContent("alice joined the group");
         join.setType("JOIN");
 
-        chatController.sendMessage("room", join);
+        chatController.sendMessage("room", join, principal("alice"));
 
         assertThat(group.getMembers()).containsExactly("alice");
         verify(chatGroupRepository, never()).save(group);
         verify(chatMessageRepository, never()).save(any(ChatMessage.class));
         verify(messagingTemplate, never()).convertAndSend(any(String.class), any(Object.class));
+    }
+
+    @Test
+    void senderCannotImpersonateAnotherUsername() {
+        ChatMessageDto message = new ChatMessageDto();
+        message.setSender("bob");
+        message.setContent("spoofed");
+        message.setType("CHAT");
+        message.setClientMessageId("client-spoofed");
+
+        chatController.sendMessage("room", message, principal("alice"));
+
+        verify(chatMessageRepository, never()).save(any(ChatMessage.class));
+        ArgumentCaptor<ChatMessageDto> rejectionCaptor = ArgumentCaptor.forClass(ChatMessageDto.class);
+        verify(messagingTemplate).convertAndSend(
+                eq("/topic/user/alice"), rejectionCaptor.capture());
+        assertThat(rejectionCaptor.getValue().getType()).isEqualTo("MESSAGE_REJECTED");
     }
 
     @Test
@@ -110,7 +128,7 @@ class ChatControllerTest {
         message.setType("CHAT");
         message.setClientMessageId("client-2");
 
-        chatController.sendMessage("room", message);
+        chatController.sendMessage("room", message, principal("alice"));
 
         verify(chatMessageRepository, never()).save(any(ChatMessage.class));
         ArgumentCaptor<ChatMessageDto> rejectionCaptor = ArgumentCaptor.forClass(ChatMessageDto.class);
@@ -136,5 +154,9 @@ class ChatControllerTest {
         verify(chatMessageRepository)
                 .findByGroupNameAndTimestampBeforeOrderByTimestampAsc("room", removedAt);
         verify(chatMessageRepository, never()).findByGroupNameOrderByTimestampAsc("room");
+    }
+
+    private Principal principal(String username) {
+        return () -> username;
     }
 }

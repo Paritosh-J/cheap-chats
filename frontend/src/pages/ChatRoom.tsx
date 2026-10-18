@@ -23,10 +23,13 @@ import {
   updateGroupSettings,
   checkGroupNameExists,
   getGroupExpiryIn,
+  logoutUser,
 } from "../services/api";
 import ChatMessageComponent from "../components/ChatMessage";
+import { useSessionHeartbeat } from "../hooks/useSessionHeartbeat";
 
 const ChatRoom: React.FC = () => {
+  useSessionHeartbeat();
   const { showToast } = useChat();
   const navigate = useNavigate(); // for navigation to pages
 
@@ -72,7 +75,7 @@ const ChatRoom: React.FC = () => {
   // fetch persisted messages
   useEffect(() => {
     // if username/groupName is empty
-    if (!username || !groupName) {
+    if (!username || !localStorage.getItem("sessionId") || !groupName) {
       // redirect to login page
       navigate("/");
       return;
@@ -143,7 +146,7 @@ const ChatRoom: React.FC = () => {
     stompClient.current = Stomp.over(socket);
 
     stompClient.current.connect(
-      {},
+      { "X-Session-Id": localStorage.getItem("sessionId") ?? "" },
       () => {
         console.log("WebSocket connected successfully");
 
@@ -833,8 +836,14 @@ const ChatRoom: React.FC = () => {
             id="logout-button"
             disabled={isReadOnly}
             onClick={() => {
-              localStorage.removeItem("username");
-              navigate("/");
+              void logoutUser()
+                .catch((error: unknown) => {
+                  console.error("Failed to release login session:", error);
+                })
+                .finally(() => {
+                  localStorage.removeItem("username");
+                  navigate("/");
+                });
             }}
             className="shrink-0 rounded-full border border-red bg-red-100 p-1.5 text-red-600 transition-all duration-200 hover:scale-110 hover:cursor-pointer hover:bg-red-200 sm:p-2"
             title="Logout"

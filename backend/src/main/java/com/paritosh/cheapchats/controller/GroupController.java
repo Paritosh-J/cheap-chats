@@ -2,7 +2,6 @@ package com.paritosh.cheapchats.controller;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.time.LocalDateTime;
 
 import org.json.JSONObject;
@@ -10,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,9 +25,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.paritosh.cheapchats.models.ChatGroup;
 import com.paritosh.cheapchats.models.User;
 import com.paritosh.cheapchats.dto.ChatMessageDto;
+import com.paritosh.cheapchats.dto.LoginRequest;
 import com.paritosh.cheapchats.repositories.ChatGroupRepository;
-import com.paritosh.cheapchats.repositories.UserRepository;
 import com.paritosh.cheapchats.services.GroupService;
+import com.paritosh.cheapchats.services.UserSessionService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,7 +41,7 @@ public class GroupController {
     private GroupService groupService;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserSessionService userSessionService;
 
     @Autowired
     private ChatGroupRepository chatGroupRepository;
@@ -49,29 +51,39 @@ public class GroupController {
 
     // LOGIN
     @PostMapping("/login")
-    public Map<String, String> login(@RequestParam String username) {
-
-        // Check if the user already exists
-        // If not, create a new user with a unique session ID
-        if (!userRepository.existsById(username)) {
-
-            User user = new User();
-
-            // Generate a unique session ID for the user
-            // This session ID can be used to identify the user in the chat system
-            user.setUserName(username);
-            user.setSessionId(UUID.randomUUID().toString());
-
-            // save changes
-            userRepository.save(user);
-
+    public ResponseEntity<Map<String, String>> login(
+            @RequestBody LoginRequest loginRequest,
+            HttpServletRequest request) {
+        try {
+            User user = userSessionService.login(
+                    loginRequest.username(),
+                    loginRequest.password(),
+                    request.getHeader("X-Session-Id"));
+            log.info("LOGIN: User: {}", user.getUserName());
+            return ResponseEntity.ok(Map.of(
+                    "status", "ok",
+                    "username", user.getUserName(),
+                    "sessionId", user.getSessionId()));
+        } catch (org.springframework.web.server.ResponseStatusException exception) {
+            return ResponseEntity.status(exception.getStatusCode())
+                    .body(Map.of("error", exception.getReason() == null
+                            ? "Login failed"
+                            : exception.getReason()));
+        } catch (DataIntegrityViolationException exception) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "This username is already registered"));
         }
+    }
 
-        // log user login
-        log.info("LOGIN: User: {}", username);
+    @PostMapping("/session/heartbeat")
+    public Map<String, Boolean> heartbeat() {
+        return Map.of("active", true);
+    }
 
-        // If the user already exists, return the user
-        return Map.of("status", "ok", "username", username);
+    @PostMapping("/logout")
+    public Map<String, Boolean> logout(HttpServletRequest request) {
+        userSessionService.logout(request.getHeader("X-Session-Id"));
+        return Map.of("loggedOut", true);
 
     }
 
