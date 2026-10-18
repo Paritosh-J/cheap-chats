@@ -18,18 +18,26 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.paritosh.cheapchats.dto.ChatMessageDto;
+import com.paritosh.cheapchats.dto.LoginRequest;
 import com.paritosh.cheapchats.models.ChatGroup;
+import com.paritosh.cheapchats.models.User;
 import com.paritosh.cheapchats.repositories.ChatGroupRepository;
 import com.paritosh.cheapchats.repositories.UserRepository;
 import com.paritosh.cheapchats.services.GroupService;
+import com.paritosh.cheapchats.services.UserSessionService;
 
 @ExtendWith(MockitoExtension.class)
 class GroupControllerTest {
 
     @Mock
     private GroupService groupService;
+
+    @Mock
+    private UserSessionService userSessionService;
 
     @Mock
     private UserRepository userRepository;
@@ -42,6 +50,36 @@ class GroupControllerTest {
 
     @InjectMocks
     private GroupController groupController;
+
+    @Test
+    void loginReturnsCreatedOrAuthenticatedSession() {
+        User user = new User();
+        user.setUserName("alice");
+        user.setSessionId("session-123");
+        when(userSessionService.login("alice", "secret-pass", null)).thenReturn(user);
+
+        ResponseEntity<Map<String, String>> response = groupController.login(
+                new LoginRequest("alice", "secret-pass"),
+                new MockHttpServletRequest());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody())
+                .containsEntry("username", "alice")
+                .containsEntry("sessionId", "session-123");
+    }
+
+    @Test
+    void loginReturnsCredentialFailureMessage() {
+        when(userSessionService.login("alice", "wrong-pass", null))
+                .thenThrow(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Incorrect password"));
+
+        ResponseEntity<Map<String, String>> response = groupController.login(
+                new LoginRequest("alice", "wrong-pass"),
+                new MockHttpServletRequest());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).containsEntry("error", "Incorrect password");
+    }
 
     @Test
     void settingsUpdateBroadcastsNewGroupNameAndDeadline() throws Exception {

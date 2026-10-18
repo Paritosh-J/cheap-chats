@@ -1,6 +1,7 @@
 package com.paritosh.cheapchats.controller;
 
 import java.time.LocalDateTime;
+import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -53,8 +54,19 @@ public class ChatController {
     // Broadcast the message to all subscribers of the group and persist it
     @MessageMapping("/chat/{groupName}/send")
     @Transactional
-    public void sendMessage(@DestinationVariable("groupName") String groupName, @Payload ChatMessageDto messageDto) {
+    public void sendMessage(
+            @DestinationVariable("groupName") String groupName,
+            @Payload ChatMessageDto messageDto,
+            Principal principal) {
         try {
+            if (principal == null || !principal.getName().equals(messageDto.getSender())) {
+                log.warn("Ignoring WebSocket message with mismatched sender: group={}", groupName);
+                if (principal != null) {
+                    messageDto.setSender(principal.getName());
+                }
+                rejectMessage(messageDto, "Your session does not match the message sender");
+                return;
+            }
             ChatGroup group = chatGroupRepository.findById(groupName).orElse(null);
             if (group == null) {
                 log.warn("Ignoring message for missing group: group={}, sender={}",

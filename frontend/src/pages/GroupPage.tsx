@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createGroup, joinGroup, getUserGroups } from "../services/api";
+import {
+  createGroup,
+  joinGroup,
+  getUserGroups,
+  logoutUser,
+} from "../services/api";
 import { BsArrowRight, BsBoxArrowRight, BsX } from "react-icons/bs";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import type { ChatGroup } from "../types";
 import { useChat } from "../context/ChatContext";
 import axios from "axios";
+import { useSessionHeartbeat } from "../hooks/useSessionHeartbeat";
 
 const GroupPage: React.FC = () => {
+  useSessionHeartbeat();
   const { showToast } = useChat();
   const [groupName, setGroupName] = useState("");
   const [expiry, setExpiry] = useState(60); // default expiry time in minutes
   const [error, setError] = useState("");
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isJoiningGroup, setIsJoiningGroup] = useState(false);
   const navigate = useNavigate();
   const [myGroups, setMyGroups] = useState<ChatGroup[]>([]);
   const [showGroups, setShowGroups] = useState(false);
@@ -22,10 +30,21 @@ const GroupPage: React.FC = () => {
 
   // CHECK USER IN LOCALSTORAGE
   useEffect(() => {
-    if (!username) {
+    if (!username || !localStorage.getItem("sessionId")) {
       navigate("/");
     }
   }, [username, navigate]);
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch (error) {
+      console.error("Failed to release login session:", error);
+    } finally {
+      localStorage.removeItem("username");
+      navigate("/");
+    }
+  };
 
   // CREATE GROUP
   const handleCreate = async () => {
@@ -77,6 +96,7 @@ const GroupPage: React.FC = () => {
       return;
     }
 
+    setIsJoiningGroup(true);
     try {
       // call joinGroup function from api service
       const response = await joinGroup(groupName.trim(), username!);
@@ -94,6 +114,8 @@ const GroupPage: React.FC = () => {
         "Could not join group. Check the group name and try again.",
         "error",
       );
+    } finally {
+      setIsJoiningGroup(false);
     }
   };
 
@@ -254,10 +276,25 @@ const GroupPage: React.FC = () => {
             id="join-group-button"
             onClick={handleJoin}
             className="w-full bg-blue-500 text-white font-bold py-2 rounded hover:bg-blue-600 transition-all cursor-pointer"
+            disabled={isJoiningGroup}
           >
-            <span className="drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
-              Join Group
-            </span>
+            {isCreatingGroup ? (
+              <span
+                className="inline-flex items-center justify-center gap-2"
+                role="status"
+                aria-live="polite"
+              >
+                <span
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                  aria-hidden="true"
+                />
+                Pulling you in...
+              </span>
+            ) : (
+              <span className="drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
+                Join Group
+              </span>
+            )}
           </button>
         </div>
 
@@ -265,10 +302,7 @@ const GroupPage: React.FC = () => {
         <div className="flex justify-center mt-4">
           <button
             id="logout-button"
-            onClick={() => {
-              localStorage.removeItem("username");
-              navigate("/");
-            }}
+            onClick={() => void handleLogout()}
             className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-all duration-200 hover:scale-110 hover:cursor-pointer border border-red"
             title="Logout"
           >
